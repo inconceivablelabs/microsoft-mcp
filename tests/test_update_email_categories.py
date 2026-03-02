@@ -3,7 +3,7 @@
 from unittest.mock import patch
 from microsoft_mcp.tools import update_email as _update_email_tool
 
-# @mcp.tool wraps the function in a FunctionTool object; .fn is the raw callable
+# FastMCP 2.8.0: @mcp.tool(name=...) wraps in FunctionTool; .fn is the raw callable
 update_email = _update_email_tool.fn
 
 

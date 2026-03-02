@@ -11,8 +11,8 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen --no-install-project
 
+COPY README.md authenticate.py ./
 COPY src/ src/
-COPY authenticate.py ./
 RUN uv sync --no-dev --frozen
 
 RUN mkdir -p /data && chown -R mcpuser:mcpuser /app /data

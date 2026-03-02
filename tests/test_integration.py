@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 if not os.getenv("MICROSOFT_MCP_CLIENT_ID"):
-    pytest.fail("MICROSOFT_MCP_CLIENT_ID environment variable is required")
+    pytest.skip("MICROSOFT_MCP_CLIENT_ID environment variable is required", allow_module_level=True)
 
 
 def parse_result(result, tool_name=None):
