@@ -424,9 +424,7 @@ def update_email(
     if not body:
         raise ValueError("Nothing to update: provide updates and/or categories")
 
-    result = graph.request(
-        "PATCH", f"/me/messages/{email_id}", account_id, json=body
-    )
+    result = graph.request("PATCH", f"/me/messages/{email_id}", account_id, json=body)
     if not result:
         raise ValueError(f"Failed to update email {email_id} - no response")
     return result

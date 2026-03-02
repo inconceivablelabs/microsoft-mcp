@@ -13,12 +13,8 @@ TOOL_REGISTRY = mcp._tool_manager._tools
 def test_all_tools_have_ms365_prefix():
     """Every registered tool must start with ms365_."""
     assert len(TOOL_REGISTRY) > 0, "No tools registered"
-    violations = [
-        name for name in TOOL_REGISTRY if not name.startswith("ms365_")
-    ]
-    assert violations == [], (
-        f"Tools missing ms365_ prefix: {violations}"
-    )
+    violations = [name for name in TOOL_REGISTRY if not name.startswith("ms365_")]
+    assert violations == [], f"Tools missing ms365_ prefix: {violations}"
 
 
 def test_expected_email_tools_exist():

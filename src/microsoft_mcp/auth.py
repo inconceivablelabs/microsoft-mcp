@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 CACHE_FILE = pl.Path(
-    os.getenv("MICROSOFT_MCP_TOKEN_CACHE", str(pl.Path.home() / ".microsoft_mcp_token_cache.json"))
+    os.getenv(
+        "MICROSOFT_MCP_TOKEN_CACHE",
+        str(pl.Path.home() / ".microsoft_mcp_token_cache.json"),
+    )
 )
 SCOPES = ["https://graph.microsoft.com/.default"]
 
