@@ -401,11 +401,31 @@ def send_email(
 
 @mcp.tool(name="ms365_update_email")
 def update_email(
-    email_id: str, updates: dict[str, Any], account_id: str
+    email_id: str,
+    account_id: str,
+    updates: dict[str, Any] | None = None,
+    categories: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Update email properties (isRead, categories, flag, etc.)"""
+    """Update email properties (isRead, categories, flag, etc.)
+
+    Args:
+        email_id: The email ID to update
+        account_id: The account ID
+        updates: Arbitrary property updates to pass to the Graph API
+            (e.g. {"isRead": true, "flag": {"flagStatus": "flagged"}})
+        categories: List of category names to assign to the email
+            (e.g. ["Blue category", "Red category"]).
+            Overrides any 'categories' key in updates if both are provided.
+    """
+    body: dict[str, Any] = dict(updates) if updates else {}
+    if categories is not None:
+        body["categories"] = categories
+
+    if not body:
+        raise ValueError("Nothing to update: provide updates and/or categories")
+
     result = graph.request(
-        "PATCH", f"/me/messages/{email_id}", account_id, json=updates
+        "PATCH", f"/me/messages/{email_id}", account_id, json=body
     )
     if not result:
         raise ValueError(f"Failed to update email {email_id} - no response")
