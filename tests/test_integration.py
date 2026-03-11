@@ -1046,20 +1046,6 @@ async def test_search_emails():
 
 
 @pytest.mark.asyncio
-async def test_search_events():
-    """Test search_events tool"""
-    async for session in get_session():
-        account_info = await get_account_info(session)
-        result = await session.call_tool(
-            "search_events",
-            {"account_id": account_info["account_id"], "query": "meeting", "limit": 5},
-        )
-        assert not result.isError
-        search_results = parse_result(result)
-        assert search_results is not None
-
-
-@pytest.mark.asyncio
 async def test_search_contacts():
     """Test search_contacts tool"""
     async for session in get_session():

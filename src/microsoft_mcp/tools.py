@@ -22,7 +22,12 @@ FOLDERS = {
 
 @mcp.tool(name="ms365_list_accounts")
 def list_accounts() -> list[dict[str, str]]:
-    """List all signed-in Microsoft accounts"""
+    """List all signed-in Microsoft accounts.
+
+    IMPORTANT: Call this first to get the account_id (a UUID string like
+    '39c06527-...') required by all other ms365_ tools. Do NOT use an email
+    address as account_id — it must be the exact UUID returned here.
+    """
     return [
         {"username": acc.username, "account_id": acc.account_id}
         for acc in auth.list_accounts()
@@ -136,7 +141,11 @@ def list_emails(
     limit: int = 10,
     include_body: bool = True,
 ) -> list[dict[str, Any]]:
-    """List emails from specified folder"""
+    """List emails from specified folder.
+
+    Args:
+        account_id: UUID from ms365_list_accounts (not an email address)
+    """
     folder_path = FOLDERS.get(folder.casefold(), folder)
 
     if include_body:
@@ -496,7 +505,16 @@ def list_events(
     days_back: int = 0,
     include_details: bool = True,
 ) -> list[dict[str, Any]]:
-    """List calendar events within specified date range, including recurring event instances"""
+    """List calendar events within a date range, including individual instances of recurring events.
+
+    This is the primary tool for finding calendar events. Uses the calendarView
+    endpoint which correctly expands recurring series into individual occurrences.
+
+    Args:
+        account_id: UUID from ms365_list_accounts (not an email address)
+        days_ahead: Number of days forward to search (default 7)
+        days_back: Number of days backward to search (default 0)
+    """
     now = dt.datetime.now(dt.timezone.utc)
     start = (now - dt.timedelta(days=days_back)).isoformat()
     end = (now + dt.timedelta(days=days_ahead)).isoformat()
@@ -543,7 +561,12 @@ def create_event(
     attendees: str | list[str] | None = None,
     timezone: str = "UTC",
 ) -> dict[str, Any]:
-    """Create a calendar event"""
+    """Create a calendar event.
+
+    Args:
+        account_id: UUID from ms365_list_accounts (not an email address)
+        timezone: IANA timezone (e.g. 'America/Chicago'). Defaults to UTC.
+    """
     event = {
         "subject": subject,
         "start": {"dateTime": start, "timeZone": timezone},
@@ -903,40 +926,6 @@ def search_emails(
     return list(graph.search_query(query, ["message"], account_id, limit))
 
 
-@mcp.tool(name="ms365_search_events")
-def search_events(
-    query: str,
-    account_id: str,
-    days_ahead: int = 365,
-    days_back: int = 365,
-    limit: int = 50,
-) -> list[dict[str, Any]]:
-    """Search calendar events using the modern search API."""
-    events = list(graph.search_query(query, ["event"], account_id, limit))
-
-    # Filter by date range if needed
-    if days_ahead != 365 or days_back != 365:
-        now = dt.datetime.now(dt.timezone.utc)
-        start = now - dt.timedelta(days=days_back)
-        end = now + dt.timedelta(days=days_ahead)
-
-        filtered_events = []
-        for event in events:
-            event_start = dt.datetime.fromisoformat(
-                event.get("start", {}).get("dateTime", "").replace("Z", "+00:00")
-            )
-            event_end = dt.datetime.fromisoformat(
-                event.get("end", {}).get("dateTime", "").replace("Z", "+00:00")
-            )
-
-            if event_start <= end and event_end >= start:
-                filtered_events.append(event)
-
-        return filtered_events
-
-    return events
-
-
 @mcp.tool(name="ms365_search_contacts")
 def search_contacts(
     query: str,
@@ -965,11 +954,11 @@ def unified_search(
 ) -> dict[str, list[dict[str, Any]]]:
     """Search across multiple Microsoft 365 resources using the modern search API
 
-    entity_types can include: 'message', 'event', 'drive', 'driveItem', 'list', 'listItem', 'site'
-    If not specified, searches across all available types.
+    entity_types can include: 'message', 'drive', 'driveItem', 'list', 'listItem', 'site'
+    If not specified, searches across messages and files. Use ms365_list_events to find calendar events.
     """
     if not entity_types:
-        entity_types = ["message", "event", "driveItem"]
+        entity_types = ["message", "driveItem"]
 
     results = {entity_type: [] for entity_type in entity_types}
 
