@@ -20,12 +20,12 @@ FOLDERS = {
 }
 
 
-@mcp.tool(name="ms365_list_accounts")
+@mcp.tool(name="list_accounts")
 def list_accounts() -> list[dict[str, str]]:
     """List all signed-in Microsoft accounts.
 
     IMPORTANT: Call this first to get the account_id (a UUID string like
-    '39c06527-...') required by all other ms365_ tools. Do NOT use an email
+    '39c06527-...') required by all other tools. Do NOT use an email
     address as account_id — it must be the exact UUID returned here.
     """
     return [
@@ -34,7 +34,7 @@ def list_accounts() -> list[dict[str, str]]:
     ]
 
 
-@mcp.tool(name="ms365_authenticate_account")
+@mcp.tool(name="authenticate_account")
 def authenticate_account() -> dict[str, str]:
     """Authenticate a new Microsoft account using device flow authentication
 
@@ -67,7 +67,7 @@ def authenticate_account() -> dict[str, str]:
     }
 
 
-@mcp.tool(name="ms365_complete_authentication")
+@mcp.tool(name="complete_authentication")
 def complete_authentication(flow_cache: str) -> dict[str, str]:
     """Complete the authentication process after the user has entered the device code
 
@@ -134,7 +134,7 @@ def complete_authentication(flow_cache: str) -> dict[str, str]:
     }
 
 
-@mcp.tool(name="ms365_list_emails")
+@mcp.tool(name="list_emails")
 def list_emails(
     account_id: str,
     folder: str = "inbox",
@@ -144,7 +144,7 @@ def list_emails(
     """List emails from specified folder.
 
     Args:
-        account_id: UUID from ms365_list_accounts (not an email address)
+        account_id: UUID from list_accounts (not an email address)
     """
     folder_path = FOLDERS.get(folder.casefold(), folder)
 
@@ -171,7 +171,7 @@ def list_emails(
     return emails
 
 
-@mcp.tool(name="ms365_get_email")
+@mcp.tool(name="get_email")
 def get_email(
     email_id: str,
     account_id: str,
@@ -218,7 +218,7 @@ def get_email(
     return result
 
 
-@mcp.tool(name="ms365_create_email_draft")
+@mcp.tool(name="create_email_draft")
 def create_email_draft(
     account_id: str,
     to: str | list[str],
@@ -294,7 +294,7 @@ def create_email_draft(
     return result
 
 
-@mcp.tool(name="ms365_send_email")
+@mcp.tool(name="send_email")
 def send_email(
     account_id: str,
     to: str | list[str],
@@ -408,7 +408,7 @@ def send_email(
         return {"status": "sent"}
 
 
-@mcp.tool(name="ms365_update_email")
+@mcp.tool(name="update_email")
 def update_email(
     email_id: str,
     account_id: str,
@@ -439,14 +439,14 @@ def update_email(
     return result
 
 
-@mcp.tool(name="ms365_delete_email")
+@mcp.tool(name="delete_email")
 def delete_email(email_id: str, account_id: str) -> dict[str, str]:
     """Delete an email"""
     graph.request("DELETE", f"/me/messages/{email_id}", account_id)
     return {"status": "deleted"}
 
 
-@mcp.tool(name="ms365_move_email")
+@mcp.tool(name="move_email")
 def move_email(
     email_id: str, destination_folder: str, account_id: str
 ) -> dict[str, Any]:
@@ -480,7 +480,7 @@ def move_email(
     return {"status": "moved", "new_id": result["id"]}
 
 
-@mcp.tool(name="ms365_reply_to_email")
+@mcp.tool(name="reply_to_email")
 def reply_to_email(account_id: str, email_id: str, body: str) -> dict[str, str]:
     """Reply to an email (sender only)"""
     endpoint = f"/me/messages/{email_id}/reply"
@@ -489,7 +489,7 @@ def reply_to_email(account_id: str, email_id: str, body: str) -> dict[str, str]:
     return {"status": "sent"}
 
 
-@mcp.tool(name="ms365_reply_all_email")
+@mcp.tool(name="reply_all_email")
 def reply_all_email(account_id: str, email_id: str, body: str) -> dict[str, str]:
     """Reply to all recipients of an email"""
     endpoint = f"/me/messages/{email_id}/replyAll"
@@ -498,7 +498,7 @@ def reply_all_email(account_id: str, email_id: str, body: str) -> dict[str, str]
     return {"status": "sent"}
 
 
-@mcp.tool(name="ms365_list_events")
+@mcp.tool(name="list_events")
 def list_events(
     account_id: str,
     days_ahead: int = 7,
@@ -511,7 +511,7 @@ def list_events(
     endpoint which correctly expands recurring series into individual occurrences.
 
     Args:
-        account_id: UUID from ms365_list_accounts (not an email address)
+        account_id: UUID from list_accounts (not an email address)
         days_ahead: Number of days forward to search (default 7)
         days_back: Number of days backward to search (default 0)
     """
@@ -541,7 +541,7 @@ def list_events(
     return events
 
 
-@mcp.tool(name="ms365_get_event")
+@mcp.tool(name="get_event")
 def get_event(event_id: str, account_id: str) -> dict[str, Any]:
     """Get full event details"""
     result = graph.request("GET", f"/me/events/{event_id}", account_id)
@@ -550,7 +550,7 @@ def get_event(event_id: str, account_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(name="ms365_create_event")
+@mcp.tool(name="create_event")
 def create_event(
     account_id: str,
     subject: str,
@@ -564,7 +564,7 @@ def create_event(
     """Create a calendar event.
 
     Args:
-        account_id: UUID from ms365_list_accounts (not an email address)
+        account_id: UUID from list_accounts (not an email address)
         timezone: IANA timezone (e.g. 'America/Chicago'). Defaults to UTC.
     """
     event = {
@@ -591,7 +591,7 @@ def create_event(
     return result
 
 
-@mcp.tool(name="ms365_update_event")
+@mcp.tool(name="update_event")
 def update_event(
     event_id: str, updates: dict[str, Any], account_id: str
 ) -> dict[str, Any]:
@@ -621,7 +621,7 @@ def update_event(
     return result or {"status": "updated"}
 
 
-@mcp.tool(name="ms365_delete_event")
+@mcp.tool(name="delete_event")
 def delete_event(
     account_id: str, event_id: str, send_cancellation: bool = True
 ) -> dict[str, str]:
@@ -633,7 +633,7 @@ def delete_event(
     return {"status": "deleted"}
 
 
-@mcp.tool(name="ms365_respond_event")
+@mcp.tool(name="respond_event")
 def respond_event(
     account_id: str,
     event_id: str,
@@ -649,7 +649,7 @@ def respond_event(
     return {"status": response}
 
 
-@mcp.tool(name="ms365_check_availability")
+@mcp.tool(name="check_availability")
 def check_availability(
     account_id: str,
     start: str,
@@ -678,7 +678,7 @@ def check_availability(
     return result
 
 
-@mcp.tool(name="ms365_list_contacts")
+@mcp.tool(name="list_contacts")
 def list_contacts(account_id: str, limit: int = 50) -> list[dict[str, Any]]:
     """List contacts"""
     params = {"$top": min(limit, 100)}
@@ -690,7 +690,7 @@ def list_contacts(account_id: str, limit: int = 50) -> list[dict[str, Any]]:
     return contacts
 
 
-@mcp.tool(name="ms365_get_contact")
+@mcp.tool(name="get_contact")
 def get_contact(contact_id: str, account_id: str) -> dict[str, Any]:
     """Get contact details"""
     result = graph.request("GET", f"/me/contacts/{contact_id}", account_id)
@@ -699,7 +699,7 @@ def get_contact(contact_id: str, account_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(name="ms365_create_contact")
+@mcp.tool(name="create_contact")
 def create_contact(
     account_id: str,
     given_name: str,
@@ -736,7 +736,7 @@ def create_contact(
     return result
 
 
-@mcp.tool(name="ms365_update_contact")
+@mcp.tool(name="update_contact")
 def update_contact(
     contact_id: str, updates: dict[str, Any], account_id: str
 ) -> dict[str, Any]:
@@ -747,14 +747,14 @@ def update_contact(
     return result or {"status": "updated"}
 
 
-@mcp.tool(name="ms365_delete_contact")
+@mcp.tool(name="delete_contact")
 def delete_contact(contact_id: str, account_id: str) -> dict[str, str]:
     """Delete a contact"""
     graph.request("DELETE", f"/me/contacts/{contact_id}", account_id)
     return {"status": "deleted"}
 
 
-@mcp.tool(name="ms365_list_files")
+@mcp.tool(name="list_files")
 def list_files(
     account_id: str, path: str = "/", limit: int = 50
 ) -> list[dict[str, Any]]:
@@ -786,7 +786,7 @@ def list_files(
     ]
 
 
-@mcp.tool(name="ms365_get_file")
+@mcp.tool(name="get_file")
 def get_file(file_id: str, account_id: str, download_path: str) -> dict[str, Any]:
     """Download a file from OneDrive to local path"""
     import subprocess
@@ -816,7 +816,7 @@ def get_file(file_id: str, account_id: str, download_path: str) -> dict[str, Any
         raise RuntimeError(f"Failed to download file: {e.stderr.decode()}")
 
 
-@mcp.tool(name="ms365_create_file")
+@mcp.tool(name="create_file")
 def create_file(
     onedrive_path: str, local_file_path: str, account_id: str
 ) -> dict[str, Any]:
@@ -831,7 +831,7 @@ def create_file(
     return result
 
 
-@mcp.tool(name="ms365_update_file")
+@mcp.tool(name="update_file")
 def update_file(file_id: str, local_file_path: str, account_id: str) -> dict[str, Any]:
     """Update OneDrive file content from a local file"""
     path = pl.Path(local_file_path).expanduser().resolve()
@@ -842,14 +842,14 @@ def update_file(file_id: str, local_file_path: str, account_id: str) -> dict[str
     return result
 
 
-@mcp.tool(name="ms365_delete_file")
+@mcp.tool(name="delete_file")
 def delete_file(file_id: str, account_id: str) -> dict[str, str]:
     """Delete a file or folder"""
     graph.request("DELETE", f"/me/drive/items/{file_id}", account_id)
     return {"status": "deleted"}
 
 
-@mcp.tool(name="ms365_get_attachment")
+@mcp.tool(name="get_attachment")
 def get_attachment(
     email_id: str, attachment_id: str, save_path: str, account_id: str
 ) -> dict[str, Any]:
@@ -878,7 +878,7 @@ def get_attachment(
     }
 
 
-@mcp.tool(name="ms365_search_files")
+@mcp.tool(name="search_files")
 def search_files(
     query: str,
     account_id: str,
@@ -900,7 +900,7 @@ def search_files(
     ]
 
 
-@mcp.tool(name="ms365_search_emails")
+@mcp.tool(name="search_emails")
 def search_emails(
     query: str,
     account_id: str,
@@ -926,7 +926,7 @@ def search_emails(
     return list(graph.search_query(query, ["message"], account_id, limit))
 
 
-@mcp.tool(name="ms365_search_contacts")
+@mcp.tool(name="search_contacts")
 def search_contacts(
     query: str,
     account_id: str,
@@ -945,7 +945,7 @@ def search_contacts(
     return contacts
 
 
-@mcp.tool(name="ms365_unified_search")
+@mcp.tool(name="unified_search")
 def unified_search(
     query: str,
     account_id: str,
@@ -955,7 +955,7 @@ def unified_search(
     """Search across multiple Microsoft 365 resources using the modern search API
 
     entity_types can include: 'message', 'drive', 'driveItem', 'list', 'listItem', 'site'
-    If not specified, searches across messages and files. Use ms365_list_events to find calendar events.
+    If not specified, searches across messages and files. Use list_events to find calendar events.
     """
     if not entity_types:
         entity_types = ["message", "driveItem"]

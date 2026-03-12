@@ -66,7 +66,7 @@ def get_token(account_id: str | None = None) -> str:
             valid_ids = [a["home_account_id"] for a in accounts]
             raise ValueError(
                 f"Account '{account_id}' not found in token cache. "
-                f"Use ms365_list_accounts to get valid account IDs. "
+                f"Use list_accounts to get valid account IDs. "
                 f"Valid accounts: {valid_ids}"
             )
     elif accounts:

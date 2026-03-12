@@ -1,4 +1,4 @@
-"""Tests for categories support in ms365_update_email."""
+"""Tests for categories support in update_email."""
 
 from unittest.mock import patch
 from microsoft_mcp.tools import update_email as _update_email_tool
