@@ -67,7 +67,6 @@ claude
 - **`delete_event`** - Cancel events
 - **`respond_event`** - Accept/decline/tentative response to invitations
 - **`check_availability`** - Check free/busy times for scheduling
-- **`search_events`** - Search calendar events
 
 ### Contact Tools
 - **`list_contacts`** - List all contacts

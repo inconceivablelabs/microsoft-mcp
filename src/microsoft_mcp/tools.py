@@ -5,7 +5,7 @@ from typing import Any
 from fastmcp import FastMCP
 from . import graph, auth
 
-mcp = FastMCP("microsoft-mcp")
+mcp = FastMCP("microsoft-365")
 
 FOLDERS = {
     k.casefold(): v
@@ -20,16 +20,21 @@ FOLDERS = {
 }
 
 
-@mcp.tool
+@mcp.tool(name="list_accounts")
 def list_accounts() -> list[dict[str, str]]:
-    """List all signed-in Microsoft accounts"""
+    """List all signed-in Microsoft accounts.
+
+    IMPORTANT: Call this first to get the account_id (a UUID string like
+    '39c06527-...') required by all other tools. Do NOT use an email
+    address as account_id — it must be the exact UUID returned here.
+    """
     return [
         {"username": acc.username, "account_id": acc.account_id}
         for acc in auth.list_accounts()
     ]
 
 
-@mcp.tool
+@mcp.tool(name="authenticate_account")
 def authenticate_account() -> dict[str, str]:
     """Authenticate a new Microsoft account using device flow authentication
 
@@ -62,7 +67,7 @@ def authenticate_account() -> dict[str, str]:
     }
 
 
-@mcp.tool
+@mcp.tool(name="complete_authentication")
 def complete_authentication(flow_cache: str) -> dict[str, str]:
     """Complete the authentication process after the user has entered the device code
 
@@ -129,14 +134,18 @@ def complete_authentication(flow_cache: str) -> dict[str, str]:
     }
 
 
-@mcp.tool
+@mcp.tool(name="list_emails")
 def list_emails(
     account_id: str,
     folder: str = "inbox",
     limit: int = 10,
     include_body: bool = True,
 ) -> list[dict[str, Any]]:
-    """List emails from specified folder"""
+    """List emails from specified folder.
+
+    Args:
+        account_id: UUID from list_accounts (not an email address)
+    """
     folder_path = FOLDERS.get(folder.casefold(), folder)
 
     if include_body:
@@ -162,7 +171,7 @@ def list_emails(
     return emails
 
 
-@mcp.tool
+@mcp.tool(name="get_email")
 def get_email(
     email_id: str,
     account_id: str,
@@ -209,7 +218,7 @@ def get_email(
     return result
 
 
-@mcp.tool
+@mcp.tool(name="create_email_draft")
 def create_email_draft(
     account_id: str,
     to: str | list[str],
@@ -285,7 +294,7 @@ def create_email_draft(
     return result
 
 
-@mcp.tool
+@mcp.tool(name="send_email")
 def send_email(
     account_id: str,
     to: str | list[str],
@@ -399,27 +408,45 @@ def send_email(
         return {"status": "sent"}
 
 
-@mcp.tool
+@mcp.tool(name="update_email")
 def update_email(
-    email_id: str, updates: dict[str, Any], account_id: str
+    email_id: str,
+    account_id: str,
+    updates: dict[str, Any] | None = None,
+    categories: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Update email properties (isRead, categories, flag, etc.)"""
-    result = graph.request(
-        "PATCH", f"/me/messages/{email_id}", account_id, json=updates
-    )
+    """Update email properties (isRead, categories, flag, etc.)
+
+    Args:
+        email_id: The email ID to update
+        account_id: The account ID
+        updates: Arbitrary property updates to pass to the Graph API
+            (e.g. {"isRead": true, "flag": {"flagStatus": "flagged"}})
+        categories: List of category names to assign to the email
+            (e.g. ["Blue category", "Red category"]).
+            Overrides any 'categories' key in updates if both are provided.
+    """
+    body: dict[str, Any] = dict(updates) if updates else {}
+    if categories is not None:
+        body["categories"] = categories
+
+    if not body:
+        raise ValueError("Nothing to update: provide updates and/or categories")
+
+    result = graph.request("PATCH", f"/me/messages/{email_id}", account_id, json=body)
     if not result:
         raise ValueError(f"Failed to update email {email_id} - no response")
     return result
 
 
-@mcp.tool
+@mcp.tool(name="delete_email")
 def delete_email(email_id: str, account_id: str) -> dict[str, str]:
     """Delete an email"""
     graph.request("DELETE", f"/me/messages/{email_id}", account_id)
     return {"status": "deleted"}
 
 
-@mcp.tool
+@mcp.tool(name="move_email")
 def move_email(
     email_id: str, destination_folder: str, account_id: str
 ) -> dict[str, Any]:
@@ -453,7 +480,7 @@ def move_email(
     return {"status": "moved", "new_id": result["id"]}
 
 
-@mcp.tool
+@mcp.tool(name="reply_to_email")
 def reply_to_email(account_id: str, email_id: str, body: str) -> dict[str, str]:
     """Reply to an email (sender only)"""
     endpoint = f"/me/messages/{email_id}/reply"
@@ -462,7 +489,7 @@ def reply_to_email(account_id: str, email_id: str, body: str) -> dict[str, str]:
     return {"status": "sent"}
 
 
-@mcp.tool
+@mcp.tool(name="reply_all_email")
 def reply_all_email(account_id: str, email_id: str, body: str) -> dict[str, str]:
     """Reply to all recipients of an email"""
     endpoint = f"/me/messages/{email_id}/replyAll"
@@ -471,14 +498,23 @@ def reply_all_email(account_id: str, email_id: str, body: str) -> dict[str, str]
     return {"status": "sent"}
 
 
-@mcp.tool
+@mcp.tool(name="list_events")
 def list_events(
     account_id: str,
     days_ahead: int = 7,
     days_back: int = 0,
     include_details: bool = True,
 ) -> list[dict[str, Any]]:
-    """List calendar events within specified date range, including recurring event instances"""
+    """List calendar events within a date range, including individual instances of recurring events.
+
+    This is the primary tool for finding calendar events. Uses the calendarView
+    endpoint which correctly expands recurring series into individual occurrences.
+
+    Args:
+        account_id: UUID from list_accounts (not an email address)
+        days_ahead: Number of days forward to search (default 7)
+        days_back: Number of days backward to search (default 0)
+    """
     now = dt.datetime.now(dt.timezone.utc)
     start = (now - dt.timedelta(days=days_back)).isoformat()
     end = (now + dt.timedelta(days=days_ahead)).isoformat()
@@ -505,7 +541,7 @@ def list_events(
     return events
 
 
-@mcp.tool
+@mcp.tool(name="get_event")
 def get_event(event_id: str, account_id: str) -> dict[str, Any]:
     """Get full event details"""
     result = graph.request("GET", f"/me/events/{event_id}", account_id)
@@ -514,7 +550,7 @@ def get_event(event_id: str, account_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool
+@mcp.tool(name="create_event")
 def create_event(
     account_id: str,
     subject: str,
@@ -525,7 +561,12 @@ def create_event(
     attendees: str | list[str] | None = None,
     timezone: str = "UTC",
 ) -> dict[str, Any]:
-    """Create a calendar event"""
+    """Create a calendar event.
+
+    Args:
+        account_id: UUID from list_accounts (not an email address)
+        timezone: IANA timezone (e.g. 'America/Chicago'). Defaults to UTC.
+    """
     event = {
         "subject": subject,
         "start": {"dateTime": start, "timeZone": timezone},
@@ -550,7 +591,7 @@ def create_event(
     return result
 
 
-@mcp.tool
+@mcp.tool(name="update_event")
 def update_event(
     event_id: str, updates: dict[str, Any], account_id: str
 ) -> dict[str, Any]:
@@ -580,7 +621,7 @@ def update_event(
     return result or {"status": "updated"}
 
 
-@mcp.tool
+@mcp.tool(name="delete_event")
 def delete_event(
     account_id: str, event_id: str, send_cancellation: bool = True
 ) -> dict[str, str]:
@@ -592,7 +633,7 @@ def delete_event(
     return {"status": "deleted"}
 
 
-@mcp.tool
+@mcp.tool(name="respond_event")
 def respond_event(
     account_id: str,
     event_id: str,
@@ -608,7 +649,7 @@ def respond_event(
     return {"status": response}
 
 
-@mcp.tool
+@mcp.tool(name="check_availability")
 def check_availability(
     account_id: str,
     start: str,
@@ -637,7 +678,7 @@ def check_availability(
     return result
 
 
-@mcp.tool
+@mcp.tool(name="list_contacts")
 def list_contacts(account_id: str, limit: int = 50) -> list[dict[str, Any]]:
     """List contacts"""
     params = {"$top": min(limit, 100)}
@@ -649,7 +690,7 @@ def list_contacts(account_id: str, limit: int = 50) -> list[dict[str, Any]]:
     return contacts
 
 
-@mcp.tool
+@mcp.tool(name="get_contact")
 def get_contact(contact_id: str, account_id: str) -> dict[str, Any]:
     """Get contact details"""
     result = graph.request("GET", f"/me/contacts/{contact_id}", account_id)
@@ -658,7 +699,7 @@ def get_contact(contact_id: str, account_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool
+@mcp.tool(name="create_contact")
 def create_contact(
     account_id: str,
     given_name: str,
@@ -695,7 +736,7 @@ def create_contact(
     return result
 
 
-@mcp.tool
+@mcp.tool(name="update_contact")
 def update_contact(
     contact_id: str, updates: dict[str, Any], account_id: str
 ) -> dict[str, Any]:
@@ -706,14 +747,14 @@ def update_contact(
     return result or {"status": "updated"}
 
 
-@mcp.tool
+@mcp.tool(name="delete_contact")
 def delete_contact(contact_id: str, account_id: str) -> dict[str, str]:
     """Delete a contact"""
     graph.request("DELETE", f"/me/contacts/{contact_id}", account_id)
     return {"status": "deleted"}
 
 
-@mcp.tool
+@mcp.tool(name="list_files")
 def list_files(
     account_id: str, path: str = "/", limit: int = 50
 ) -> list[dict[str, Any]]:
@@ -745,7 +786,7 @@ def list_files(
     ]
 
 
-@mcp.tool
+@mcp.tool(name="get_file")
 def get_file(file_id: str, account_id: str, download_path: str) -> dict[str, Any]:
     """Download a file from OneDrive to local path"""
     import subprocess
@@ -775,7 +816,7 @@ def get_file(file_id: str, account_id: str, download_path: str) -> dict[str, Any
         raise RuntimeError(f"Failed to download file: {e.stderr.decode()}")
 
 
-@mcp.tool
+@mcp.tool(name="create_file")
 def create_file(
     onedrive_path: str, local_file_path: str, account_id: str
 ) -> dict[str, Any]:
@@ -790,7 +831,7 @@ def create_file(
     return result
 
 
-@mcp.tool
+@mcp.tool(name="update_file")
 def update_file(file_id: str, local_file_path: str, account_id: str) -> dict[str, Any]:
     """Update OneDrive file content from a local file"""
     path = pl.Path(local_file_path).expanduser().resolve()
@@ -801,18 +842,91 @@ def update_file(file_id: str, local_file_path: str, account_id: str) -> dict[str
     return result
 
 
-@mcp.tool
+@mcp.tool(name="delete_file")
 def delete_file(file_id: str, account_id: str) -> dict[str, str]:
     """Delete a file or folder"""
     graph.request("DELETE", f"/me/drive/items/{file_id}", account_id)
     return {"status": "deleted"}
 
 
-@mcp.tool
+def _extract_office_xml_text(file_bytes: bytes, mime_type: str) -> str | None:
+    """Extract text from Office XML formats (docx/xlsx/pptx) using stdlib only."""
+    import io
+    import xml.etree.ElementTree as ET
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            if "wordprocessingml" in mime_type:
+                ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                doc_xml = zf.read("word/document.xml")
+                root = ET.fromstring(doc_xml)
+                texts = [t.text for t in root.iter(f"{{{ns}}}t") if t.text]
+                return " ".join(texts) if texts else None
+            elif "spreadsheetml" in mime_type:
+                ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+                try:
+                    ss_xml = zf.read("xl/sharedStrings.xml")
+                    root = ET.fromstring(ss_xml)
+                    texts = []
+                    for si in root.findall(f"{{{ns}}}si"):
+                        parts = [t.text for t in si.iter(f"{{{ns}}}t") if t.text]
+                        texts.append("".join(parts))
+                    return "\n".join(texts) if texts else None
+                except KeyError:
+                    return None
+            elif "presentationml" in mime_type:
+                ns_a = "http://schemas.openxmlformats.org/drawingml/2006/main"
+                texts = []
+                for name in sorted(zf.namelist()):
+                    if name.startswith("ppt/slides/slide") and name.endswith(".xml"):
+                        slide_xml = zf.read(name)
+                        root = ET.fromstring(slide_xml)
+                        slide_texts = [
+                            t.text for t in root.iter(f"{{{ns_a}}}t") if t.text
+                        ]
+                        if slide_texts:
+                            texts.append(" ".join(slide_texts))
+                return "\n\n".join(texts) if texts else None
+    except (zipfile.BadZipFile, ET.ParseError, KeyError):
+        return None
+    return None
+
+
+def _extract_text_content(content_bytes: bytes, content_type: str) -> str | None:
+    """Extract readable text from attachment bytes when possible.
+
+    Returns extracted text for text/* and Office XML formats, None for binary.
+    """
+    try:
+        ct = content_type.lower()
+        if ct.startswith("text/"):
+            return content_bytes.decode("utf-8", errors="replace")
+
+        office_types = {
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        }
+        if ct in office_types:
+            return _extract_office_xml_text(content_bytes, ct)
+    except Exception:
+        pass
+    return None
+
+
+_MAX_INLINE_CHARS = 50_000
+
+
+@mcp.tool(name="get_attachment")
 def get_attachment(
     email_id: str, attachment_id: str, save_path: str, account_id: str
 ) -> dict[str, Any]:
-    """Download email attachment to a specified file path"""
+    """Download email attachment to a specified file path.
+
+    For text-readable formats (text/*, docx, xlsx, pptx), the extracted text
+    is returned in a 'content' key. Binary files omit this key.
+    """
     result = graph.request(
         "GET", f"/me/messages/{email_id}/attachments/{attachment_id}", account_id
     )
@@ -829,15 +943,28 @@ def get_attachment(
     content_bytes = base64.b64decode(result["contentBytes"])
     path.write_bytes(content_bytes)
 
-    return {
+    content_type = result.get("contentType", "application/octet-stream")
+    response: dict[str, Any] = {
         "name": result.get("name", "unknown"),
-        "content_type": result.get("contentType", "application/octet-stream"),
+        "content_type": content_type,
         "size": result.get("size", 0),
         "saved_to": str(path),
     }
 
+    extracted = _extract_text_content(content_bytes, content_type)
+    if extracted is not None:
+        if len(extracted) > _MAX_INLINE_CHARS:
+            extracted = (
+                extracted[:_MAX_INLINE_CHARS]
+                + f"\n\n[Content truncated — showing first {_MAX_INLINE_CHARS}"
+                f" of {len(extracted)} characters]"
+            )
+        response["content"] = extracted
 
-@mcp.tool
+    return response
+
+
+@mcp.tool(name="search_files")
 def search_files(
     query: str,
     account_id: str,
@@ -859,7 +986,7 @@ def search_files(
     ]
 
 
-@mcp.tool
+@mcp.tool(name="search_emails")
 def search_emails(
     query: str,
     account_id: str,
@@ -885,41 +1012,7 @@ def search_emails(
     return list(graph.search_query(query, ["message"], account_id, limit))
 
 
-@mcp.tool
-def search_events(
-    query: str,
-    account_id: str,
-    days_ahead: int = 365,
-    days_back: int = 365,
-    limit: int = 50,
-) -> list[dict[str, Any]]:
-    """Search calendar events using the modern search API."""
-    events = list(graph.search_query(query, ["event"], account_id, limit))
-
-    # Filter by date range if needed
-    if days_ahead != 365 or days_back != 365:
-        now = dt.datetime.now(dt.timezone.utc)
-        start = now - dt.timedelta(days=days_back)
-        end = now + dt.timedelta(days=days_ahead)
-
-        filtered_events = []
-        for event in events:
-            event_start = dt.datetime.fromisoformat(
-                event.get("start", {}).get("dateTime", "").replace("Z", "+00:00")
-            )
-            event_end = dt.datetime.fromisoformat(
-                event.get("end", {}).get("dateTime", "").replace("Z", "+00:00")
-            )
-
-            if event_start <= end and event_end >= start:
-                filtered_events.append(event)
-
-        return filtered_events
-
-    return events
-
-
-@mcp.tool
+@mcp.tool(name="search_contacts")
 def search_contacts(
     query: str,
     account_id: str,
@@ -938,7 +1031,7 @@ def search_contacts(
     return contacts
 
 
-@mcp.tool
+@mcp.tool(name="unified_search")
 def unified_search(
     query: str,
     account_id: str,
@@ -947,11 +1040,11 @@ def unified_search(
 ) -> dict[str, list[dict[str, Any]]]:
     """Search across multiple Microsoft 365 resources using the modern search API
 
-    entity_types can include: 'message', 'event', 'drive', 'driveItem', 'list', 'listItem', 'site'
-    If not specified, searches across all available types.
+    entity_types can include: 'message', 'drive', 'driveItem', 'list', 'listItem', 'site'
+    If not specified, searches across messages and files. Use list_events to find calendar events.
     """
     if not entity_types:
-        entity_types = ["message", "event", "driveItem"]
+        entity_types = ["message", "driveItem"]
 
     results = {entity_type: [] for entity_type in entity_types}
 
