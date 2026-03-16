@@ -401,12 +401,30 @@ def send_email(
 
 @mcp.tool
 def update_email(
-    email_id: str, updates: dict[str, Any], account_id: str
+    email_id: str,
+    account_id: str,
+    updates: dict[str, Any] | None = None,
+    categories: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Update email properties (isRead, categories, flag, etc.)"""
-    result = graph.request(
-        "PATCH", f"/me/messages/{email_id}", account_id, json=updates
-    )
+    """Update email properties (isRead, categories, flag, etc.)
+
+    Args:
+        email_id: The email ID to update
+        account_id: The account ID
+        updates: Arbitrary property updates to pass to the Graph API
+            (e.g. {"isRead": true, "flag": {"flagStatus": "flagged"}})
+        categories: List of category names to assign to the email
+            (e.g. ["Blue category", "Red category"]).
+            Overrides any 'categories' key in updates if both are provided.
+    """
+    body: dict[str, Any] = dict(updates) if updates else {}
+    if categories is not None:
+        body["categories"] = categories
+
+    if not body:
+        raise ValueError("Nothing to update: provide updates and/or categories")
+
+    result = graph.request("PATCH", f"/me/messages/{email_id}", account_id, json=body)
     if not result:
         raise ValueError(f"Failed to update email {email_id} - no response")
     return result
@@ -808,11 +826,84 @@ def delete_file(file_id: str, account_id: str) -> dict[str, str]:
     return {"status": "deleted"}
 
 
+def _extract_office_xml_text(file_bytes: bytes, mime_type: str) -> str | None:
+    """Extract text from Office XML formats (docx/xlsx/pptx) using stdlib only."""
+    import io
+    import xml.etree.ElementTree as ET
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            if "wordprocessingml" in mime_type:
+                ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                doc_xml = zf.read("word/document.xml")
+                root = ET.fromstring(doc_xml)
+                texts = [t.text for t in root.iter(f"{{{ns}}}t") if t.text]
+                return " ".join(texts) if texts else None
+            elif "spreadsheetml" in mime_type:
+                ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+                try:
+                    ss_xml = zf.read("xl/sharedStrings.xml")
+                    root = ET.fromstring(ss_xml)
+                    texts = []
+                    for si in root.findall(f"{{{ns}}}si"):
+                        parts = [t.text for t in si.iter(f"{{{ns}}}t") if t.text]
+                        texts.append("".join(parts))
+                    return "\n".join(texts) if texts else None
+                except KeyError:
+                    return None
+            elif "presentationml" in mime_type:
+                ns_a = "http://schemas.openxmlformats.org/drawingml/2006/main"
+                texts = []
+                for name in sorted(zf.namelist()):
+                    if name.startswith("ppt/slides/slide") and name.endswith(".xml"):
+                        slide_xml = zf.read(name)
+                        root = ET.fromstring(slide_xml)
+                        slide_texts = [
+                            t.text for t in root.iter(f"{{{ns_a}}}t") if t.text
+                        ]
+                        if slide_texts:
+                            texts.append(" ".join(slide_texts))
+                return "\n\n".join(texts) if texts else None
+    except (zipfile.BadZipFile, ET.ParseError, KeyError):
+        return None
+    return None
+
+
+def _extract_text_content(content_bytes: bytes, content_type: str) -> str | None:
+    """Extract readable text from attachment bytes when possible.
+
+    Returns extracted text for text/* and Office XML formats, None for binary.
+    """
+    try:
+        ct = content_type.lower()
+        if ct.startswith("text/"):
+            return content_bytes.decode("utf-8", errors="replace")
+
+        office_types = {
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        }
+        if ct in office_types:
+            return _extract_office_xml_text(content_bytes, ct)
+    except Exception:
+        pass
+    return None
+
+
+_MAX_INLINE_CHARS = 50_000
+
+
 @mcp.tool
 def get_attachment(
     email_id: str, attachment_id: str, save_path: str, account_id: str
 ) -> dict[str, Any]:
-    """Download email attachment to a specified file path"""
+    """Download email attachment to a specified file path.
+
+    For text-readable formats (text/*, docx, xlsx, pptx), the extracted text
+    is returned in a 'content' key. Binary files omit this key.
+    """
     result = graph.request(
         "GET", f"/me/messages/{email_id}/attachments/{attachment_id}", account_id
     )
@@ -829,12 +920,25 @@ def get_attachment(
     content_bytes = base64.b64decode(result["contentBytes"])
     path.write_bytes(content_bytes)
 
-    return {
+    content_type = result.get("contentType", "application/octet-stream")
+    response: dict[str, Any] = {
         "name": result.get("name", "unknown"),
-        "content_type": result.get("contentType", "application/octet-stream"),
+        "content_type": content_type,
         "size": result.get("size", 0),
         "saved_to": str(path),
     }
+
+    extracted = _extract_text_content(content_bytes, content_type)
+    if extracted is not None:
+        if len(extracted) > _MAX_INLINE_CHARS:
+            extracted = (
+                extracted[:_MAX_INLINE_CHARS]
+                + f"\n\n[Content truncated \u2014 showing first {_MAX_INLINE_CHARS}"
+                f" of {len(extracted)} characters]"
+            )
+        response["content"] = extracted
+
+    return response
 
 
 @mcp.tool
