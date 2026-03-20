@@ -1104,7 +1104,7 @@ def search_emails(
         params = {
             "$search": f'"{query}"',
             "$top": min(limit, 100),
-            "$select": "id,subject,from,toRecipients,receivedDateTime,hasAttachments,body,conversationId,isRead",
+            "$select": "id,subject,from,toRecipients,receivedDateTime,hasAttachments,body,conversationId,isRead,internetMessageId",
         }
 
         return list(
