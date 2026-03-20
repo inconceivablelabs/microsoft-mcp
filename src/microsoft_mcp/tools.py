@@ -657,10 +657,9 @@ def check_availability(
     attendees: str | list[str] | None = None,
 ) -> dict[str, Any]:
     """Check calendar availability for scheduling"""
-    me_info = graph.request("GET", "/me", account_id)
-    if not me_info or "mail" not in me_info:
-        raise ValueError("Failed to get user email address")
-    schedules = [me_info["mail"]]
+    from microsoft_mcp.auth import get_account_email
+
+    schedules = [get_account_email(account_id)]
     if attendees:
         attendees_list = [attendees] if isinstance(attendees, str) else attendees
         schedules.extend(attendees_list)
@@ -675,6 +674,64 @@ def check_availability(
     result = graph.request("POST", "/me/calendar/getSchedule", account_id, json=payload)
     if not result:
         raise ValueError("Failed to check availability")
+    return result
+
+
+@mcp.tool(name="find_meeting_times")
+def find_meeting_times(
+    account_id: str,
+    attendees: str | list[str],
+    duration_minutes: int = 30,
+    start: str | None = None,
+    end: str | None = None,
+    max_candidates: int = 5,
+    min_attendee_percentage: float = 100,
+    timezone: str = "Central Standard Time",
+) -> dict[str, Any]:
+    """Find available meeting times for a group of attendees.
+
+    Uses Microsoft Graph's findMeetingTimes to suggest optimal slots
+    based on all attendees' calendar availability. Returns compact
+    ranked suggestions instead of raw schedule data.
+
+    Args:
+        account_id: Microsoft account ID
+        attendees: Email address(es) of attendees
+        duration_minutes: Meeting duration in minutes (default 30)
+        start: Start of search window (ISO datetime, default: now)
+        end: End of search window (ISO datetime, default: 2 weeks from now)
+        max_candidates: Maximum number of suggestions to return (default 5)
+        min_attendee_percentage: Minimum % of attendees that must be available (default 100)
+        timezone: Timezone for the search window (default Central Standard Time)
+    """
+    attendees_list = [attendees] if isinstance(attendees, str) else attendees
+
+    payload: dict[str, Any] = {
+        "attendees": [
+            {
+                "emailAddress": {"address": email},
+                "type": "required",
+            }
+            for email in attendees_list
+        ],
+        "meetingDuration": f"PT{duration_minutes}M",
+        "maxCandidates": max_candidates,
+        "minimumAttendeePercentage": min_attendee_percentage,
+        "isOrganizerOptional": False,
+        "returnSuggestionReasons": True,
+    }
+
+    if start or end:
+        timeslot: dict[str, Any] = {}
+        if start:
+            timeslot["start"] = {"dateTime": start, "timeZone": timezone}
+        if end:
+            timeslot["end"] = {"dateTime": end, "timeZone": timezone}
+        payload["timeConstraint"] = {"timeslots": [timeslot]}
+
+    result = graph.request("POST", "/me/findMeetingTimes", account_id, json=payload)
+    if not result:
+        raise ValueError("Failed to find meeting times")
     return result
 
 

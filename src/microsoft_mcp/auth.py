@@ -101,6 +101,17 @@ def get_token(account_id: str | None = None) -> str:
     return result["access_token"]
 
 
+def get_account_email(account_id: str) -> str:
+    """Get the email address for an account from the MSAL cache (no API call needed)."""
+    app = get_app()
+    account = next(
+        (a for a in app.get_accounts() if a["home_account_id"] == account_id), None
+    )
+    if not account or "username" not in account:
+        raise ValueError(f"Account '{account_id}' not found in token cache")
+    return account["username"]
+
+
 def list_accounts() -> list[Account]:
     app = get_app()
     return [
