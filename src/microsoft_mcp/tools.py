@@ -481,8 +481,31 @@ def move_email(
 
 
 @mcp.tool(name="reply_to_email")
-def reply_to_email(account_id: str, email_id: str, body: str) -> dict[str, str]:
-    """Reply to an email (sender only)"""
+def reply_to_email(
+    account_id: str, email_id: str, body: str, draft_only: bool = False
+) -> dict[str, str]:
+    """Reply to an email (sender only).
+
+    Args:
+        account_id: Microsoft account ID
+        email_id: ID of the email to reply to
+        body: Reply body text
+        draft_only: If True, create a draft reply instead of sending immediately
+    """
+    if draft_only:
+        endpoint = f"/me/messages/{email_id}/createReply"
+        result = graph.request("POST", endpoint, account_id)
+        if result and "id" in result:
+            # Update the draft body
+            draft_id = result["id"]
+            graph.request(
+                "PATCH",
+                f"/me/messages/{draft_id}",
+                account_id,
+                json={"body": {"contentType": "Text", "content": body}},
+            )
+            return {"status": "draft_created", "draft_id": draft_id}
+        raise ValueError("Failed to create reply draft")
     endpoint = f"/me/messages/{email_id}/reply"
     payload = {"message": {"body": {"contentType": "Text", "content": body}}}
     graph.request("POST", endpoint, account_id, json=payload)
@@ -490,8 +513,30 @@ def reply_to_email(account_id: str, email_id: str, body: str) -> dict[str, str]:
 
 
 @mcp.tool(name="reply_all_email")
-def reply_all_email(account_id: str, email_id: str, body: str) -> dict[str, str]:
-    """Reply to all recipients of an email"""
+def reply_all_email(
+    account_id: str, email_id: str, body: str, draft_only: bool = False
+) -> dict[str, str]:
+    """Reply to all recipients of an email.
+
+    Args:
+        account_id: Microsoft account ID
+        email_id: ID of the email to reply to
+        body: Reply body text
+        draft_only: If True, create a draft reply instead of sending immediately
+    """
+    if draft_only:
+        endpoint = f"/me/messages/{email_id}/createReplyAll"
+        result = graph.request("POST", endpoint, account_id)
+        if result and "id" in result:
+            draft_id = result["id"]
+            graph.request(
+                "PATCH",
+                f"/me/messages/{draft_id}",
+                account_id,
+                json={"body": {"contentType": "Text", "content": body}},
+            )
+            return {"status": "draft_created", "draft_id": draft_id}
+        raise ValueError("Failed to create reply-all draft")
     endpoint = f"/me/messages/{email_id}/replyAll"
     payload = {"message": {"body": {"contentType": "Text", "content": body}}}
     graph.request("POST", endpoint, account_id, json=payload)
