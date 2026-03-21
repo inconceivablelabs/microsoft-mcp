@@ -450,7 +450,12 @@ def delete_email(email_id: str, account_id: str) -> dict[str, str]:
 def move_email(
     email_id: str, destination_folder: str, account_id: str
 ) -> dict[str, Any]:
-    """Move email to another folder"""
+    """Move email to another folder.
+
+    Searches top-level folders first, then child folders (one level deep)
+    if not found at the top level. This supports subfolders like
+    Inbox/Action Required without requiring the caller to specify the path.
+    """
     folder_path = FOLDERS.get(destination_folder.casefold(), destination_folder)
 
     folders = graph.request("GET", "/me/mailFolders", account_id)
@@ -461,10 +466,27 @@ def move_email(
     if "value" not in folders:
         raise ValueError(f"Unexpected folder response structure: {folders}")
 
+    # Search top-level folders
     for folder in folders["value"]:
         if folder["displayName"].lower() == folder_path.lower():
             folder_id = folder["id"]
             break
+
+    # If not found, search child folders one level deep
+    if not folder_id:
+        for parent in folders["value"]:
+            children = graph.request(
+                "GET",
+                f"/me/mailFolders/{parent['id']}/childFolders",
+                account_id,
+            )
+            if children and "value" in children:
+                for child in children["value"]:
+                    if child["displayName"].lower() == folder_path.lower():
+                        folder_id = child["id"]
+                        break
+            if folder_id:
+                break
 
     if not folder_id:
         raise ValueError(f"Folder '{destination_folder}' not found")
