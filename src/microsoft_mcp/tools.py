@@ -1,6 +1,8 @@
 import base64
 import datetime as dt
 import pathlib as pl
+import subprocess
+import tempfile
 from typing import Any
 from fastmcp import FastMCP
 from . import graph, auth
@@ -1034,8 +1036,26 @@ def _extract_text_content(content_bytes: bytes, content_type: str) -> str | None
         }
         if ct in office_types:
             return _extract_office_xml_text(content_bytes, ct)
+
+        if ct == "application/pdf":
+            return _extract_pdf_text(content_bytes)
     except Exception:
         pass
+    return None
+
+
+def _extract_pdf_text(content_bytes: bytes) -> str | None:
+    """Extract text from PDF using pdftotext (poppler-utils) with layout preservation."""
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=True) as tmp:
+        tmp.write(content_bytes)
+        tmp.flush()
+        result = subprocess.run(
+            ["pdftotext", "-layout", tmp.name, "-"],
+            capture_output=True,
+            timeout=60,
+        )
+        if result.returncode == 0:
+            return result.stdout.decode("utf-8", errors="replace")
     return None
 
 
