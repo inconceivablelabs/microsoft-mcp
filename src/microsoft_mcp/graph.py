@@ -311,7 +311,13 @@ def search_query(
                         for hit in container["hits"]:
                             if limit and items_returned >= limit:
                                 return
-                            yield hit["resource"]
+                            resource = hit["resource"]
+                            # Search API returns the resource ID as hitId
+                            # on the hit container, not inside the resource.
+                            # Inject it so results match the list endpoint shape.
+                            if "id" not in resource and "hitId" in hit:
+                                resource["id"] = hit["hitId"]
+                            yield resource
                             items_returned += 1
 
         if "@odata.nextLink" in result:
