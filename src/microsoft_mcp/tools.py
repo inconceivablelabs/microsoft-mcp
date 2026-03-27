@@ -804,6 +804,179 @@ def find_meeting_times(
     return result
 
 
+# --- Online Meetings ---
+
+
+@mcp.tool(name="list_online_meetings")
+def list_online_meetings(
+    account_id: str,
+    filter_join_url: str | None = None,
+    start_datetime: str | None = None,
+    end_datetime: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """List Teams online meetings.
+
+    Args:
+        account_id: UUID from list_accounts (not an email address)
+        filter_join_url: Filter by exact join URL (takes precedence over date range)
+        start_datetime: Filter meetings starting after this ISO datetime
+        end_datetime: Filter meetings starting before this ISO datetime
+        limit: Maximum number of meetings to return (default 20)
+    """
+    params: dict[str, Any] = {"$top": limit}
+
+    if filter_join_url:
+        params["$filter"] = f"joinWebUrl eq '{filter_join_url}'"
+    elif start_datetime and end_datetime:
+        params["$filter"] = (
+            f"startDateTime ge {start_datetime} and startDateTime le {end_datetime}"
+        )
+    elif start_datetime:
+        params["$filter"] = f"startDateTime ge {start_datetime}"
+    elif end_datetime:
+        params["$filter"] = f"startDateTime le {end_datetime}"
+
+    return list(graph.request_paginated("/me/onlineMeetings", account_id, params=params, limit=limit))
+
+
+@mcp.tool(name="get_online_meeting")
+def get_online_meeting(meeting_id: str, account_id: str) -> dict[str, Any]:
+    """Get full details of a Teams online meeting.
+
+    Args:
+        meeting_id: The online meeting ID
+        account_id: UUID from list_accounts (not an email address)
+    """
+    result = graph.request("GET", f"/me/onlineMeetings/{meeting_id}", account_id)
+    if not result:
+        raise ValueError(f"Online meeting with ID {meeting_id} not found")
+    return result
+
+
+# --- Transcripts ---
+
+
+@mcp.tool(name="list_transcripts")
+def list_transcripts(meeting_id: str, account_id: str) -> list[dict[str, Any]]:
+    """List transcripts for a Teams online meeting.
+
+    Args:
+        meeting_id: The online meeting ID (from list_online_meetings or get_online_meeting)
+        account_id: UUID from list_accounts (not an email address)
+
+    Returns:
+        List of transcript metadata objects (id, createdDateTime, contentCorrelationId).
+        Returns empty list if no transcripts exist or transcription was not enabled.
+    """
+    result = graph.request(
+        "GET", f"/me/onlineMeetings/{meeting_id}/transcripts", account_id
+    )
+    if not result:
+        return []
+    return result.get("value", [])
+
+
+@mcp.tool(name="get_transcript_content")
+def get_transcript_content(
+    meeting_id: str,
+    transcript_id: str,
+    account_id: str,
+    content_format: str = "text/vtt",
+    max_length: int | None = None,
+) -> str:
+    """Get the text content of a meeting transcript.
+
+    Args:
+        meeting_id: The online meeting ID
+        transcript_id: The transcript ID (from list_transcripts)
+        account_id: UUID from list_accounts (not an email address)
+        content_format: Content format — "text/vtt" (with timestamps) or "text/plain" (plain text).
+            Defaults to "text/vtt".
+        max_length: Maximum character length to return. None means no truncation (default).
+    """
+    content = graph.request_text(
+        f"/me/onlineMeetings/{meeting_id}/transcripts/{transcript_id}/content",
+        account_id,
+        accept=content_format,
+    )
+
+    if max_length and len(content) > max_length:
+        content = content[:max_length] + "\n\n[Content truncated at {} characters]".format(
+            max_length
+        )
+
+    return content
+
+
+# --- AI Insights ---
+
+
+def _user_id_from_account(account_id: str) -> str:
+    """Extract Azure AD object ID from MSAL home_account_id.
+
+    MSAL home_account_id format is '{oid}.{tid}' where oid is the user's
+    Azure AD object ID and tid is the tenant ID.
+    """
+    if "." not in account_id:
+        raise ValueError(
+            f"Invalid account_id format: expected '{{oid}}.{{tid}}', got '{account_id}'"
+        )
+    return account_id.split(".")[0]
+
+
+@mcp.tool(name="list_ai_insights")
+def list_ai_insights(meeting_id: str, account_id: str) -> list[dict[str, Any]]:
+    """List Copilot AI-generated insights for a Teams online meeting.
+
+    Returns insight metadata (id, createdDateTime, etc.). Use get_ai_insight
+    to retrieve full content including meeting notes and action items.
+
+    Requires Microsoft 365 Copilot or Teams Premium license.
+
+    Args:
+        meeting_id: The online meeting ID (from list_online_meetings or get_online_meeting)
+        account_id: UUID from list_accounts (not an email address)
+    """
+    user_id = _user_id_from_account(account_id)
+    result = graph.request(
+        "GET",
+        f"/copilot/users/{user_id}/onlineMeetings/{meeting_id}/aiInsights",
+        account_id,
+    )
+    if not result:
+        return []
+    return result.get("value", [])
+
+
+@mcp.tool(name="get_ai_insight")
+def get_ai_insight(
+    meeting_id: str, insight_id: str, account_id: str
+) -> dict[str, Any]:
+    """Get full Copilot AI insight for a meeting, including notes and action items.
+
+    Returns the complete insight with meetingNotes (title, text, subpoints),
+    actionItems (title, text, ownerDisplayName), and viewpoint.mentionEvents
+    (speaker, timestamp, utterance).
+
+    Requires Microsoft 365 Copilot or Teams Premium license.
+
+    Args:
+        meeting_id: The online meeting ID
+        insight_id: The AI insight ID (from list_ai_insights)
+        account_id: UUID from list_accounts (not an email address)
+    """
+    user_id = _user_id_from_account(account_id)
+    result = graph.request(
+        "GET",
+        f"/copilot/users/{user_id}/onlineMeetings/{meeting_id}/aiInsights/{insight_id}",
+        account_id,
+    )
+    if not result:
+        raise ValueError(f"AI insight with ID {insight_id} not found")
+    return result
+
+
 @mcp.tool(name="list_contacts")
 def list_contacts(account_id: str, limit: int = 50) -> list[dict[str, Any]]:
     """List contacts"""
