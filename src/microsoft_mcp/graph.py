@@ -83,6 +83,60 @@ def request(
     return None
 
 
+def request_text(
+    path: str,
+    account_id: str | None = None,
+    accept: str = "text/vtt",
+    max_retries: int = 3,
+) -> str:
+    """Make a GET request that returns raw text (not JSON).
+
+    Used for endpoints like transcript content that return text/vtt or text/plain.
+    """
+    headers = {
+        "Authorization": f"Bearer {get_token(account_id)}",
+        "Accept": accept,
+    }
+
+    retry_count = 0
+    while retry_count <= max_retries:
+        try:
+            response = _client.request(
+                method="GET",
+                url=f"{BASE_URL}{path}",
+                headers=headers,
+            )
+
+            if response.status_code == 429:
+                retry_after = int(response.headers.get("Retry-After", "5"))
+                if retry_count < max_retries:
+                    time.sleep(min(retry_after, 60))
+                    retry_count += 1
+                    continue
+
+            if response.status_code >= 500 and retry_count < max_retries:
+                wait_time = (2**retry_count) * 1
+                time.sleep(wait_time)
+                retry_count += 1
+                continue
+
+            response.raise_for_status()
+
+            if not response.text:
+                raise ValueError(f"Empty response from {path}")
+            return response.text
+
+        except httpx.HTTPStatusError as e:
+            if retry_count < max_retries and e.response.status_code >= 500:
+                wait_time = (2**retry_count) * 1
+                time.sleep(wait_time)
+                retry_count += 1
+                continue
+            raise
+
+    raise ValueError("Failed to fetch text content after all retries")
+
+
 def request_paginated(
     path: str,
     account_id: str | None = None,
