@@ -629,12 +629,16 @@ def create_event(
     body: str | None = None,
     attendees: str | list[str] | None = None,
     timezone: str = "UTC",
+    is_online_meeting: bool = False,
+    online_meeting_provider: str = "teamsForBusiness",
 ) -> dict[str, Any]:
     """Create a calendar event.
 
     Args:
         account_id: UUID from list_accounts (not an email address)
         timezone: IANA timezone (e.g. 'America/Chicago'). Defaults to UTC.
+        is_online_meeting: If True, creates a Teams online meeting link.
+        online_meeting_provider: Meeting provider (default: 'teamsForBusiness').
     """
     event = {
         "subject": subject,
@@ -653,6 +657,10 @@ def create_event(
         event["attendees"] = [
             {"emailAddress": {"address": a}, "type": "required"} for a in attendees_list
         ]
+
+    if is_online_meeting:
+        event["isOnlineMeeting"] = True
+        event["onlineMeetingProvider"] = online_meeting_provider
 
     result = graph.request("POST", "/me/events", account_id, json=event)
     if not result:
