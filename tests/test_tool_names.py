@@ -69,8 +69,22 @@ def test_expected_contact_tools_exist():
         assert name in TOOL_REGISTRY, f"Expected tool '{name}' not found"
 
 
+def test_expected_meeting_tools_exist():
+    """Online meeting and transcript tools must be registered."""
+    expected = [
+        "list_online_meetings",
+        "get_online_meeting",
+        "list_transcripts",
+        "get_transcript_content",
+        "list_ai_insights",
+        "get_ai_insight",
+    ]
+    for name in expected:
+        assert name in TOOL_REGISTRY, f"Expected tool '{name}' not found"
+
+
 def test_tool_count_unchanged():
     """Guard against accidentally dropping tools during rename."""
-    assert len(TOOL_REGISTRY) == 34, (
-        f"Expected 34 tools, found {len(TOOL_REGISTRY)}: {sorted(TOOL_REGISTRY.keys())}"
+    assert len(TOOL_REGISTRY) == 41, (
+        f"Expected 41 tools, found {len(TOOL_REGISTRY)}: {sorted(TOOL_REGISTRY.keys())}"
     )
