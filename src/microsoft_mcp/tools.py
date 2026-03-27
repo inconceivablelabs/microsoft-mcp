@@ -819,33 +819,39 @@ def find_meeting_times(
 def list_online_meetings(
     account_id: str,
     filter_join_url: str | None = None,
-    start_datetime: str | None = None,
-    end_datetime: str | None = None,
-    limit: int = 20,
+    filter_join_meeting_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """List Teams online meetings.
+    """Find a Teams online meeting by join URL or meeting ID.
+
+    The Graph API requires one of the filter parameters — bare listing
+    is not supported. Use filter_join_url (from a calendar event's
+    onlineMeeting.joinUrl) or filter_join_meeting_id.
 
     Args:
         account_id: UUID from list_accounts (not an email address)
-        filter_join_url: Filter by exact join URL (takes precedence over date range)
-        start_datetime: Filter meetings starting after this ISO datetime
-        end_datetime: Filter meetings starting before this ISO datetime
-        limit: Maximum number of meetings to return (default 20)
+        filter_join_url: Filter by exact join URL (from calendar event's onlineMeeting.joinUrl)
+        filter_join_meeting_id: Filter by join meeting ID (the numeric meeting ID)
     """
-    params: dict[str, Any] = {"$top": limit}
+    if not filter_join_url and not filter_join_meeting_id:
+        raise ValueError(
+            "Either filter_join_url or filter_join_meeting_id is required. "
+            "The Graph API does not support listing all online meetings."
+        )
 
     if filter_join_url:
-        params["$filter"] = f"joinWebUrl eq '{filter_join_url}'"
-    elif start_datetime and end_datetime:
-        params["$filter"] = (
-            f"startDateTime ge {start_datetime} and startDateTime le {end_datetime}"
-        )
-    elif start_datetime:
-        params["$filter"] = f"startDateTime ge {start_datetime}"
-    elif end_datetime:
-        params["$filter"] = f"startDateTime le {end_datetime}"
+        # Embed filter directly in path to prevent httpx from double-encoding
+        # the percent-encoded characters in the Teams join URL
+        path = f"/me/onlineMeetings?$filter=JoinWebUrl eq '{filter_join_url}'"
+        result = graph.request("GET", path, account_id)
+    else:
+        params = {
+            "$filter": f"joinMeetingIdSettings/joinMeetingId eq '{filter_join_meeting_id}'"
+        }
+        result = graph.request("GET", "/me/onlineMeetings", account_id, params=params)
 
-    return list(graph.request_paginated("/me/onlineMeetings", account_id, params=params, limit=limit))
+    if not result:
+        return []
+    return result.get("value", [])
 
 
 @mcp.tool(name="get_online_meeting")
