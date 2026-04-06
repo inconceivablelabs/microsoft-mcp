@@ -66,6 +66,23 @@ def request(
                 retry_count += 1
                 continue
 
+            # Extract Graph API error detail from 4xx responses before raising
+            if response.status_code >= 400 and response.status_code < 500:
+                detail = ""
+                try:
+                    error_body = response.json()
+                    error_info = error_body.get("error", {})
+                    code = error_info.get("code", "")
+                    message = error_info.get("message", "")
+                    detail = f" — {code}: {message}" if code else ""
+                except Exception:
+                    pass
+                if detail:
+                    raise httpx.HTTPStatusError(
+                        f"{response.status_code}{detail}",
+                        request=response.request,
+                        response=response,
+                    )
             response.raise_for_status()
 
             if response.content:
