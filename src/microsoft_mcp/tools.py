@@ -228,13 +228,18 @@ def create_email_draft(
     body: str,
     cc: str | list[str] | None = None,
     attachments: str | list[str] | None = None,
+    content_type: str = "HTML",
 ) -> dict[str, Any]:
-    """Create an email draft with file path(s) as attachments"""
+    """Create an email draft with file path(s) as attachments.
+
+    Args:
+        content_type: Body format — 'HTML' (default) or 'Text'.
+    """
     to_list = [to] if isinstance(to, str) else to
 
     message = {
         "subject": subject,
-        "body": {"contentType": "Text", "content": body},
+        "body": {"contentType": content_type, "content": body},
         "toRecipients": [{"emailAddress": {"address": addr}} for addr in to_list],
     }
 
@@ -304,13 +309,18 @@ def send_email(
     body: str,
     cc: str | list[str] | None = None,
     attachments: str | list[str] | None = None,
+    content_type: str = "HTML",
 ) -> dict[str, str]:
-    """Send an email immediately with file path(s) as attachments"""
+    """Send an email immediately with file path(s) as attachments.
+
+    Args:
+        content_type: Body format — 'HTML' (default) or 'Text'.
+    """
     to_list = [to] if isinstance(to, str) else to
 
     message = {
         "subject": subject,
-        "body": {"contentType": "Text", "content": body},
+        "body": {"contentType": content_type, "content": body},
         "toRecipients": [{"emailAddress": {"address": addr}} for addr in to_list],
     }
 
@@ -364,7 +374,7 @@ def send_email(
         to_list = [to] if isinstance(to, str) else to
         message = {
             "subject": subject,
-            "body": {"contentType": "Text", "content": body},
+            "body": {"contentType": content_type, "content": body},
             "toRecipients": [{"emailAddress": {"address": addr}} for addr in to_list],
         }
         if cc:
@@ -506,7 +516,11 @@ def move_email(
 
 @mcp.tool(name="reply_to_email")
 def reply_to_email(
-    account_id: str, email_id: str, body: str, draft_only: bool = False
+    account_id: str,
+    email_id: str,
+    body: str,
+    draft_only: bool = False,
+    content_type: str = "HTML",
 ) -> dict[str, str]:
     """Reply to an email (sender only).
 
@@ -515,30 +529,34 @@ def reply_to_email(
         email_id: ID of the email to reply to
         body: Reply body text
         draft_only: If True, create a draft reply instead of sending immediately
+        content_type: Body format — 'HTML' (default) or 'Text'.
     """
     if draft_only:
         endpoint = f"/me/messages/{email_id}/createReply"
         result = graph.request("POST", endpoint, account_id)
         if result and "id" in result:
-            # Update the draft body
             draft_id = result["id"]
             graph.request(
                 "PATCH",
                 f"/me/messages/{draft_id}",
                 account_id,
-                json={"body": {"contentType": "Text", "content": body}},
+                json={"body": {"contentType": content_type, "content": body}},
             )
             return {"status": "draft_created", "draft_id": draft_id}
         raise ValueError("Failed to create reply draft")
     endpoint = f"/me/messages/{email_id}/reply"
-    payload = {"message": {"body": {"contentType": "Text", "content": body}}}
+    payload = {"message": {"body": {"contentType": content_type, "content": body}}}
     graph.request("POST", endpoint, account_id, json=payload)
     return {"status": "sent"}
 
 
 @mcp.tool(name="reply_all_email")
 def reply_all_email(
-    account_id: str, email_id: str, body: str, draft_only: bool = False
+    account_id: str,
+    email_id: str,
+    body: str,
+    draft_only: bool = False,
+    content_type: str = "HTML",
 ) -> dict[str, str]:
     """Reply to all recipients of an email.
 
@@ -547,6 +565,7 @@ def reply_all_email(
         email_id: ID of the email to reply to
         body: Reply body text
         draft_only: If True, create a draft reply instead of sending immediately
+        content_type: Body format — 'HTML' (default) or 'Text'.
     """
     if draft_only:
         endpoint = f"/me/messages/{email_id}/createReplyAll"
@@ -557,12 +576,12 @@ def reply_all_email(
                 "PATCH",
                 f"/me/messages/{draft_id}",
                 account_id,
-                json={"body": {"contentType": "Text", "content": body}},
+                json={"body": {"contentType": content_type, "content": body}},
             )
             return {"status": "draft_created", "draft_id": draft_id}
         raise ValueError("Failed to create reply-all draft")
     endpoint = f"/me/messages/{email_id}/replyAll"
-    payload = {"message": {"body": {"contentType": "Text", "content": body}}}
+    payload = {"message": {"body": {"contentType": content_type, "content": body}}}
     graph.request("POST", endpoint, account_id, json=payload)
     return {"status": "sent"}
 
@@ -631,6 +650,7 @@ def create_event(
     timezone: str = "UTC",
     is_online_meeting: bool = False,
     online_meeting_provider: str = "teamsForBusiness",
+    body_content_type: str = "Text",
 ) -> dict[str, Any]:
     """Create a calendar event.
 
@@ -639,6 +659,7 @@ def create_event(
         timezone: IANA timezone (e.g. 'America/Chicago'). Defaults to UTC.
         is_online_meeting: If True, creates a Teams online meeting link.
         online_meeting_provider: Meeting provider (default: 'teamsForBusiness').
+        body_content_type: Body format — 'Text' (default) or 'HTML'.
     """
     event = {
         "subject": subject,
@@ -650,7 +671,7 @@ def create_event(
         event["location"] = {"displayName": location}
 
     if body:
-        event["body"] = {"contentType": "Text", "content": body}
+        event["body"] = {"contentType": body_content_type, "content": body}
 
     if attendees:
         attendees_list = [attendees] if isinstance(attendees, str) else attendees
@@ -670,9 +691,13 @@ def create_event(
 
 @mcp.tool(name="update_event")
 def update_event(
-    event_id: str, updates: dict[str, Any], account_id: str
+    event_id: str, updates: dict[str, Any], account_id: str, body_content_type: str = "Text"
 ) -> dict[str, Any]:
-    """Update event properties"""
+    """Update event properties.
+
+    Args:
+        body_content_type: Body format — 'Text' (default) or 'HTML'.
+    """
     formatted_updates = {}
 
     if "subject" in updates:
@@ -690,7 +715,7 @@ def update_event(
     if "location" in updates:
         formatted_updates["location"] = {"displayName": updates["location"]}
     if "body" in updates:
-        formatted_updates["body"] = {"contentType": "Text", "content": updates["body"]}
+        formatted_updates["body"] = {"contentType": body_content_type, "content": updates["body"]}
 
     result = graph.request(
         "PATCH", f"/me/events/{event_id}", account_id, json=formatted_updates
