@@ -637,9 +637,22 @@ def forward_email(
             draft_id = result["id"]
             patch_payload: dict[str, Any] = {"toRecipients": recipients}
             if comment:
+                # Read the draft to preserve the original forwarded content
+                draft = graph.request(
+                    "GET",
+                    f"/me/messages/{draft_id}",
+                    account_id,
+                    params={"$select": "body"},
+                )
+                original_body = ""
+                if draft and "body" in draft:
+                    original_body = draft["body"].get("content", "")
+                combined = (
+                    f"{comment}<br><br>{original_body}" if original_body else comment
+                )
                 patch_payload["body"] = {
                     "contentType": content_type,
-                    "content": comment,
+                    "content": combined,
                 }
             graph.request(
                 "PATCH",
