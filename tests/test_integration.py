@@ -339,6 +339,41 @@ async def test_reply_all_email():
 
 
 @pytest.mark.asyncio
+async def test_forward_email():
+    """Test forward_email tool"""
+    async for session in get_session():
+        account_info = await get_account_info(session)
+        await asyncio.sleep(2)
+        list_result = await session.call_tool(
+            "list_emails", {"account_id": account_info["account_id"], "limit": 5}
+        )
+        emails = parse_result(list_result, "list_emails")
+
+        test_email = None
+        if emails:
+            test_email = next(
+                (e for e in emails if "MCP Test" in e.get("subject", "")),
+                emails[0] if emails else None,
+            )
+
+        if test_email:
+            result = await session.call_tool(
+                "forward_email",
+                {
+                    "account_id": account_info["account_id"],
+                    "email_id": test_email.get("id"),
+                    "to_recipients": [account_info["email"]],
+                    "comment": "Forwarding for testing",
+                    "draft_only": True,
+                },
+            )
+            assert not result.isError
+            forward_result = parse_result(result)
+            assert forward_result is not None
+            assert forward_result.get("status") == "draft_created"
+
+
+@pytest.mark.asyncio
 async def test_list_events():
     """Test list_events tool"""
     async for session in get_session():

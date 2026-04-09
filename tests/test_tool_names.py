@@ -25,6 +25,7 @@ def test_expected_email_tools_exist():
         "get_email",
         "search_emails",
         "reply_to_email",
+        "forward_email",
         "move_email",
         "update_email",
     ]
@@ -85,6 +86,6 @@ def test_expected_meeting_tools_exist():
 
 def test_tool_count_unchanged():
     """Guard against accidentally dropping tools during rename."""
-    assert len(TOOL_REGISTRY) == 41, (
-        f"Expected 41 tools, found {len(TOOL_REGISTRY)}: {sorted(TOOL_REGISTRY.keys())}"
+    assert len(TOOL_REGISTRY) == 42, (
+        f"Expected 42 tools, found {len(TOOL_REGISTRY)}: {sorted(TOOL_REGISTRY.keys())}"
     )

@@ -536,11 +536,23 @@ def reply_to_email(
         result = graph.request("POST", endpoint, account_id)
         if result and "id" in result:
             draft_id = result["id"]
+            # Read the draft to get the original thread content
+            draft = graph.request(
+                "GET",
+                f"/me/messages/{draft_id}",
+                account_id,
+                params={"$select": "body"},
+            )
+            # Prepend new content to the existing thread
+            original_body = ""
+            if draft and "body" in draft:
+                original_body = draft["body"].get("content", "")
+            combined = f"{body}<br><br>{original_body}" if original_body else body
             graph.request(
                 "PATCH",
                 f"/me/messages/{draft_id}",
                 account_id,
-                json={"body": {"contentType": content_type, "content": body}},
+                json={"body": {"contentType": content_type, "content": combined}},
             )
             return {"status": "draft_created", "draft_id": draft_id}
         raise ValueError("Failed to create reply draft")
@@ -572,16 +584,76 @@ def reply_all_email(
         result = graph.request("POST", endpoint, account_id)
         if result and "id" in result:
             draft_id = result["id"]
+            # Read the draft to get the original thread content
+            draft = graph.request(
+                "GET",
+                f"/me/messages/{draft_id}",
+                account_id,
+                params={"$select": "body"},
+            )
+            # Prepend new content to the existing thread
+            original_body = ""
+            if draft and "body" in draft:
+                original_body = draft["body"].get("content", "")
+            combined = f"{body}<br><br>{original_body}" if original_body else body
             graph.request(
                 "PATCH",
                 f"/me/messages/{draft_id}",
                 account_id,
-                json={"body": {"contentType": content_type, "content": body}},
+                json={"body": {"contentType": content_type, "content": combined}},
             )
             return {"status": "draft_created", "draft_id": draft_id}
         raise ValueError("Failed to create reply-all draft")
     endpoint = f"/me/messages/{email_id}/replyAll"
     payload = {"message": {"body": {"contentType": content_type, "content": body}}}
+    graph.request("POST", endpoint, account_id, json=payload)
+    return {"status": "sent"}
+
+
+@mcp.tool(name="forward_email")
+def forward_email(
+    account_id: str,
+    email_id: str,
+    to_recipients: list[str],
+    comment: str = "",
+    draft_only: bool = False,
+    content_type: str = "HTML",
+) -> dict[str, str]:
+    """Forward an email to one or more recipients. Preserves all attachments.
+
+    Args:
+        account_id: Microsoft account ID
+        email_id: ID of the email to forward
+        to_recipients: List of email addresses to forward to
+        comment: Optional message to include with the forward
+        draft_only: If True, create a draft forward instead of sending immediately
+        content_type: Body format for comment — 'HTML' (default) or 'Text'.
+    """
+    recipients = [{"emailAddress": {"address": addr}} for addr in to_recipients]
+    if draft_only:
+        endpoint = f"/me/messages/{email_id}/createForward"
+        result = graph.request("POST", endpoint, account_id)
+        if result and "id" in result:
+            draft_id = result["id"]
+            patch_payload: dict[str, Any] = {"toRecipients": recipients}
+            if comment:
+                patch_payload["body"] = {
+                    "contentType": content_type,
+                    "content": comment,
+                }
+            graph.request(
+                "PATCH",
+                f"/me/messages/{draft_id}",
+                account_id,
+                json=patch_payload,
+            )
+            return {"status": "draft_created", "draft_id": draft_id}
+        raise ValueError("Failed to create forward draft")
+    endpoint = f"/me/messages/{email_id}/forward"
+    payload: dict[str, Any] = {
+        "comment": comment,
+        "toRecipients": recipients,
+    }
     graph.request("POST", endpoint, account_id, json=payload)
     return {"status": "sent"}
 
@@ -691,7 +763,10 @@ def create_event(
 
 @mcp.tool(name="update_event")
 def update_event(
-    event_id: str, updates: dict[str, Any], account_id: str, body_content_type: str = "Text"
+    event_id: str,
+    updates: dict[str, Any],
+    account_id: str,
+    body_content_type: str = "Text",
 ) -> dict[str, Any]:
     """Update event properties.
 
@@ -715,7 +790,10 @@ def update_event(
     if "location" in updates:
         formatted_updates["location"] = {"displayName": updates["location"]}
     if "body" in updates:
-        formatted_updates["body"] = {"contentType": body_content_type, "content": updates["body"]}
+        formatted_updates["body"] = {
+            "contentType": body_content_type,
+            "content": updates["body"],
+        }
 
     result = graph.request(
         "PATCH", f"/me/events/{event_id}", account_id, json=formatted_updates
@@ -941,9 +1019,9 @@ def get_transcript_content(
     )
 
     if max_length and len(content) > max_length:
-        content = content[:max_length] + "\n\n[Content truncated at {} characters]".format(
-            max_length
-        )
+        content = content[
+            :max_length
+        ] + "\n\n[Content truncated at {} characters]".format(max_length)
 
     return content
 
@@ -989,9 +1067,7 @@ def list_ai_insights(meeting_id: str, account_id: str) -> list[dict[str, Any]]:
 
 
 @mcp.tool(name="get_ai_insight")
-def get_ai_insight(
-    meeting_id: str, insight_id: str, account_id: str
-) -> dict[str, Any]:
+def get_ai_insight(meeting_id: str, insight_id: str, account_id: str) -> dict[str, Any]:
     """Get full Copilot AI insight for a meeting, including notes and action items.
 
     Returns the complete insight with meetingNotes (title, text, subpoints),
