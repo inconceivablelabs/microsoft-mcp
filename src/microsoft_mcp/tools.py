@@ -1365,12 +1365,22 @@ _MAX_INLINE_CHARS = 50_000
 
 @mcp.tool(name="get_attachment")
 def get_attachment(
-    email_id: str, attachment_id: str, save_path: str, account_id: str
+    email_id: str,
+    attachment_id: str,
+    account_id: str,
+    save_path: str | None = None,
 ) -> dict[str, Any]:
-    """Download email attachment to a specified file path.
+    """Download an email attachment and return its content.
 
-    For text-readable formats (text/*, docx, xlsx, pptx), the extracted text
-    is returned in a 'content' key. Binary files omit this key.
+    By default, returns the raw bytes base64-encoded in ``content_bytes_b64``
+    so callers in separate processes/containers can decode and use the file
+    themselves. Pass ``save_path`` to also write the decoded bytes to a local
+    file on the server; when set, the resolved path is echoed back as
+    ``saved_to``.
+
+    For text-readable formats (text/*, docx, xlsx, pptx, pdf), extracted text
+    is also returned in a ``content`` key (truncated to the inline limit).
+    Binary files omit the ``content`` key.
     """
     result = graph.request(
         "GET", f"/me/messages/{email_id}/attachments/{attachment_id}", account_id
@@ -1382,19 +1392,22 @@ def get_attachment(
     if "contentBytes" not in result:
         raise ValueError("Attachment content not available")
 
-    # Save attachment to file
-    path = pl.Path(save_path).expanduser().resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content_bytes = base64.b64decode(result["contentBytes"])
-    path.write_bytes(content_bytes)
-
+    content_b64 = result["contentBytes"]
+    content_bytes = base64.b64decode(content_b64)
     content_type = result.get("contentType", "application/octet-stream")
+
     response: dict[str, Any] = {
         "name": result.get("name", "unknown"),
         "content_type": content_type,
         "size": result.get("size", 0),
-        "saved_to": str(path),
+        "content_bytes_b64": content_b64,
     }
+
+    if save_path is not None:
+        path = pl.Path(save_path).expanduser().resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content_bytes)
+        response["saved_to"] = str(path)
 
     extracted = _extract_text_content(content_bytes, content_type)
     if extracted is not None:

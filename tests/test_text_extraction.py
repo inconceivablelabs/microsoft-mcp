@@ -116,13 +116,15 @@ class TestGetAttachmentInlineContent:
 
     @patch("microsoft_mcp.tools.graph")
     def test_text_file_includes_content_key(self, mock_graph, tmp_path):
-        from microsoft_mcp.tools import get_attachment
+        from microsoft_mcp.tools import get_attachment as get_attachment_tool
+
+        get_attachment = get_attachment_tool.fn
 
         text = b"Meeting notes from Monday."
         mock_graph.request.return_value = self._mock_graph_response(text, "text/plain", "notes.txt")
 
         save_path = str(tmp_path / "notes.txt")
-        result = get_attachment("email1", "att1", save_path, "account1")
+        result = get_attachment("email1", "att1", "account1", save_path=save_path)
 
         assert "content" in result
         assert result["content"] == "Meeting notes from Monday."
@@ -130,28 +132,64 @@ class TestGetAttachmentInlineContent:
 
     @patch("microsoft_mcp.tools.graph")
     def test_binary_file_omits_content_key(self, mock_graph, tmp_path):
-        from microsoft_mcp.tools import get_attachment
+        from microsoft_mcp.tools import get_attachment as get_attachment_tool
+
+        get_attachment = get_attachment_tool.fn
 
         binary = b"\x89PNG\r\n\x1a\n\x00\x00\x00"
         mock_graph.request.return_value = self._mock_graph_response(binary, "image/png", "photo.png")
 
         save_path = str(tmp_path / "photo.png")
-        result = get_attachment("email1", "att1", save_path, "account1")
+        result = get_attachment("email1", "att1", "account1", save_path=save_path)
 
         assert "content" not in result
         assert result["saved_to"] == save_path
 
     @patch("microsoft_mcp.tools.graph")
     def test_truncates_large_text(self, mock_graph, tmp_path):
-        from microsoft_mcp.tools import get_attachment
+        from microsoft_mcp.tools import get_attachment as get_attachment_tool
+
+        get_attachment = get_attachment_tool.fn
 
         large_text = b"x" * 60_000
         mock_graph.request.return_value = self._mock_graph_response(large_text, "text/plain", "big.txt")
 
         save_path = str(tmp_path / "big.txt")
-        result = get_attachment("email1", "att1", save_path, "account1")
+        result = get_attachment("email1", "att1", "account1", save_path=save_path)
 
         assert "content" in result
         assert "truncated" in result["content"].lower()
         # Content should be truncated to max + notice
         assert len(result["content"]) < 60_000
+
+    @patch("microsoft_mcp.tools.graph")
+    def test_returns_base64_without_save_path(self, mock_graph):
+        from microsoft_mcp.tools import get_attachment as get_attachment_tool
+
+        get_attachment = get_attachment_tool.fn
+
+        binary = b"\x89PNG\r\n\x1a\n\x00\x00\x00PDF-bytes"
+        mock_graph.request.return_value = self._mock_graph_response(
+            binary, "application/pdf", "report.pdf"
+        )
+
+        result = get_attachment("email1", "att1", "account1")
+
+        assert "content_bytes_b64" in result
+        assert base64.b64decode(result["content_bytes_b64"]) == binary
+        assert "saved_to" not in result
+
+    @patch("microsoft_mcp.tools.graph")
+    def test_base64_returned_even_with_save_path(self, mock_graph, tmp_path):
+        from microsoft_mcp.tools import get_attachment as get_attachment_tool
+
+        get_attachment = get_attachment_tool.fn
+
+        binary = b"\x89PNG\r\n\x1a\n\x00\x00\x00"
+        mock_graph.request.return_value = self._mock_graph_response(binary, "image/png", "photo.png")
+
+        save_path = str(tmp_path / "photo.png")
+        result = get_attachment("email1", "att1", "account1", save_path=save_path)
+
+        assert base64.b64decode(result["content_bytes_b64"]) == binary
+        assert result["saved_to"] == save_path
