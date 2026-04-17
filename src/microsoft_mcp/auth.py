@@ -1,4 +1,5 @@
 import os
+import tempfile
 import msal
 import pathlib as pl
 from typing import NamedTuple
@@ -27,9 +28,44 @@ def _read_cache() -> str | None:
         return None
 
 
+def _atomic_write(path: pl.Path, content: str) -> None:
+    """Atomically overwrite a file via tempfile + os.replace.
+
+    Without this, concurrent writers (mcp-gateway spawns a fresh
+    microsoft-mcp container per tool call, all mounting the shared
+    token-cache volume) can interleave open/truncate/write calls and
+    leave the target file with partial or spliced content. Observed
+    2026-04-16: 68 Graph API calls failed over 11h after the cache ended
+    up with 3 stray bytes appended past a valid JSON object. See pa-20x9.
+
+    The temp file is created in the target's parent directory so
+    os.replace stays on the same filesystem (required for atomicity on
+    POSIX).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        dir=str(path.parent),
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as tmp:
+        tmp.write(content)
+        tmp.flush()
+        os.fsync(tmp.fileno())
+        tmp_path = tmp.name
+    try:
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 def _write_cache(content: str) -> None:
-    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_text(content)
+    _atomic_write(CACHE_FILE, content)
 
 
 def get_app() -> msal.PublicClientApplication:
