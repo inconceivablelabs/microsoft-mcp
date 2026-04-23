@@ -22,6 +22,43 @@ FOLDERS = {
 }
 
 
+def _resolve_folder_id(folder_name: str, account_id: str) -> str | None:
+    """Resolve a mail folder display name to its Graph folder ID.
+
+    Searches top-level folders first, then child folders one level deep.
+    Graph's `/me/mailFolders/{folder}/messages` endpoint only accepts
+    well-known names (inbox, sentitems, ...) or folder IDs — passing a
+    custom display name returns ErrorInvalidIdMalformed. Callers should
+    use this when the name isn't in FOLDERS.
+
+    Returns the folder ID, or None if no match is found.
+    """
+    folders = graph.request("GET", "/me/mailFolders", account_id)
+    if not folders or "value" not in folders:
+        return None
+
+    target = folder_name.lower()
+
+    # Top-level folders
+    for folder in folders["value"]:
+        if folder["displayName"].lower() == target:
+            return folder["id"]
+
+    # Child folders, one level deep
+    for parent in folders["value"]:
+        children = graph.request(
+            "GET",
+            f"/me/mailFolders/{parent['id']}/childFolders",
+            account_id,
+        )
+        if children and "value" in children:
+            for child in children["value"]:
+                if child["displayName"].lower() == target:
+                    return child["id"]
+
+    return None
+
+
 @mcp.tool(name="list_accounts")
 def list_accounts() -> list[dict[str, str]]:
     """List all signed-in Microsoft accounts.
@@ -148,7 +185,17 @@ def list_emails(
     Args:
         account_id: UUID from list_accounts (not an email address)
     """
-    folder_path = FOLDERS.get(folder.casefold(), folder)
+    key = folder.casefold()
+    if key in FOLDERS:
+        folder_path = FOLDERS[key]
+    else:
+        # Custom/user folder — Graph requires the folder ID here, not the
+        # display name. Resolve by walking /me/mailFolders (top level +
+        # one level of children), matching move_email's pattern.
+        folder_id = _resolve_folder_id(folder, account_id)
+        if not folder_id:
+            raise ValueError(f"Folder '{folder}' not found")
+        folder_path = folder_id
 
     if include_body:
         select_fields = "id,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,body,conversationId,isRead"
