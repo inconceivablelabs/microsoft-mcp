@@ -49,3 +49,70 @@ def test_me_people_primary_returns_normalized_rows(mock_request):
             "source": "people",
         }
     ]
+
+
+@patch("microsoft_mcp.tools.graph.request")
+def test_users_fallback_when_people_returns_empty(mock_request):
+    """/users fallback fires when /me/people returns 0 rows."""
+    mock_request.side_effect = [
+        {"value": []},  # /me/people returns nothing
+        {
+            "value": [
+                {
+                    "id": "user-id-1",
+                    "displayName": "Casey Kim",
+                    "mail": "ckim@caringbridge.org",
+                    "userPrincipalName": "ckim@caringbridge.org",
+                    "jobTitle": "Engineer",
+                    "department": "Eng",
+                }
+            ]
+        },
+    ]
+
+    rows = search_directory(query="Casey", account_id="acct-1", limit=10)
+
+    assert mock_request.call_count == 2
+    second_call = mock_request.call_args_list[1]
+    assert second_call.args[0] == "GET"
+    assert second_call.args[1] == "/users"
+    assert (
+        second_call.kwargs["params"]["$search"] == '"displayName:Casey" OR "mail:Casey"'
+    )
+    assert (
+        "displayName,mail,userPrincipalName" in second_call.kwargs["params"]["$select"]
+    )
+    assert "id" in second_call.kwargs["params"]["$select"]
+
+    assert rows == [
+        {
+            "name": "Casey Kim",
+            "email": "ckim@caringbridge.org",
+            "job_title": "Engineer",
+            "department": "Eng",
+            "person_type": None,
+            "source": "users",
+        }
+    ]
+
+
+@patch("microsoft_mcp.tools.graph.request")
+def test_users_row_falls_back_to_upn_when_mail_null(mock_request):
+    """Service-account / shared-mailbox rows have null mail; fall back to UPN."""
+    mock_request.side_effect = [
+        {"value": []},
+        {
+            "value": [
+                {
+                    "id": "user-id-2",
+                    "displayName": "Shared Inbox",
+                    "mail": None,
+                    "userPrincipalName": "sharedbox@caringbridge.org",
+                    "jobTitle": None,
+                    "department": None,
+                }
+            ]
+        },
+    ]
+    rows = search_directory(query="shared", account_id="acct-1", limit=5)
+    assert rows[0]["email"] == "sharedbox@caringbridge.org"

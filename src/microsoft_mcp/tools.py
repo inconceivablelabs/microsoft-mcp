@@ -1523,7 +1523,12 @@ def search_contacts(
     account_id: str,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    """Search contacts. Uses traditional search since unified_search doesn't support contacts."""
+    """Search the user's PERSONAL address book (/me/contacts) only.
+
+    For the organization directory (CB-internal employees, GAL contacts),
+    use search_directory instead. Uses traditional search since
+    unified_search doesn't support contacts.
+    """
     params = {
         "$search": f'"{query}"',
         "$top": min(limit, 100),
@@ -1548,6 +1553,18 @@ def _normalize_people_row(row: dict[str, Any]) -> dict[str, Any]:
         "department": row.get("department"),
         "person_type": person_type_obj.get("subclass"),
         "source": "people",
+    }
+
+
+def _normalize_users_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a /users response row to the search_directory shape."""
+    return {
+        "name": row.get("displayName"),
+        "email": row.get("mail") or row.get("userPrincipalName"),
+        "job_title": row.get("jobTitle"),
+        "department": row.get("department"),
+        "person_type": None,
+        "source": "users",
     }
 
 
@@ -1579,8 +1596,18 @@ def search_directory(
     if people_rows:
         return [_normalize_people_row(r) for r in people_rows]
 
-    # Fallback path implemented in Task B2.
-    return []
+    users_response = graph.request(
+        "GET",
+        "/users",
+        account_id,
+        params={
+            "$search": f'"displayName:{query}" OR "mail:{query}"',
+            "$top": min(limit, 100),
+            "$select": "id,displayName,mail,userPrincipalName,jobTitle,department",
+        },
+    )
+    users_rows = (users_response or {}).get("value", [])
+    return [_normalize_users_row(r) for r in users_rows]
 
 
 @mcp.tool(name="unified_search")
