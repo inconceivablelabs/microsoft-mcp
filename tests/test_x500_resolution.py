@@ -4,8 +4,19 @@ X.500 legacy DN detection, batched /users $filter resolution,
 file-based shared-volume cache, and message-walker for email tools.
 """
 
+import logging
 from unittest.mock import patch
-from microsoft_mcp.address_resolution import _is_x500_dn, _resolve_dns_via_graph
+
+import pytest
+
+from microsoft_mcp.address_resolution import (
+    _is_x500_dn,
+    _read_cache,
+    _resolve_dns_via_graph,
+    _write_cache_atomic,
+    resolve_dns,
+    resolve_x500_in_message,
+)
 
 
 # --- Detector ---
@@ -183,3 +194,263 @@ def test_resolver_handles_null_mail_on_returned_user(mock_request):
     }
     result = _resolve_dns_via_graph([dn], account_id="acct-1")
     assert result == {dn: None}
+
+
+@pytest.fixture
+def isolated_cache_file(tmp_path, monkeypatch):
+    """Redirect the cache file to a tmp dir for the test.
+
+    Monkeypatches auth.CACHE_FILE so _cache_path() resolves to a tmp
+    location -- more refactor-stable than monkeypatching _cache_path itself.
+    """
+    fake_token_cache = tmp_path / "fake_token_cache.json"
+    monkeypatch.setattr("microsoft_mcp.auth.CACHE_FILE", fake_token_cache)
+    return tmp_path / ".microsoft_mcp_x500_cache.json"
+
+
+# --- Cache ---
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_resolve_dns_uses_cache_on_second_call(mock_request, isolated_cache_file):
+    """First call hits Graph; second call with same DN does not."""
+    dn = "/O=EXCHANGELABS/CN=user1"
+    mock_request.return_value = {
+        "value": [
+            {
+                "id": "u1",
+                "mail": "u1@cb.org",
+                "proxyAddresses": [f"X500:{dn}", "SMTP:u1@cb.org"],
+            }
+        ]
+    }
+
+    first = resolve_dns([dn], account_id="acct-1")
+    second = resolve_dns([dn], account_id="acct-1")
+
+    assert mock_request.call_count == 1
+    assert first == second == {dn: "u1@cb.org"}
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_resolve_dns_caches_no_match_as_none(mock_request, isolated_cache_file):
+    """Confirmed-absent DNs cache as None and don't re-query."""
+    dn = "/O=GHOST/CN=missing"
+    mock_request.return_value = {"value": []}
+
+    resolve_dns([dn], account_id="acct-1")
+    resolve_dns([dn], account_id="acct-1")
+
+    assert mock_request.call_count == 1
+    assert _read_cache().get("acct-1", {}).get(dn) is None
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_resolve_dns_does_not_cache_on_http_errors(
+    mock_request, isolated_cache_file, caplog
+):
+    """Transient httpx errors don't write the cache; warning is logged."""
+    import httpx
+
+    dn = "/O=EXCHANGELABS/CN=user1"
+    mock_request.side_effect = httpx.RequestError("simulated network failure")
+
+    with caplog.at_level(logging.WARNING, logger="microsoft_mcp.address_resolution"):
+        result = resolve_dns([dn], account_id="acct-1")
+
+    assert result == {dn: None}
+    assert _read_cache() == {}
+    assert any("X.500 resolution failed" in rec.message for rec in caplog.records)
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_resolve_dns_does_not_swallow_own_code_bugs(mock_request, isolated_cache_file):
+    """Narrow except -- KeyError/TypeError from response parsing surface, not silent."""
+    mock_request.side_effect = KeyError("attribute lookup bug")
+    with pytest.raises(KeyError):
+        resolve_dns(["/O=EXCHANGELABS/CN=x"], account_id="acct-1")
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_resolve_dns_only_queries_uncached(mock_request, isolated_cache_file):
+    """Mixed batch: cached DN skipped, uncached DN queried."""
+    dn1 = "/O=EXCHANGELABS/CN=cached"
+    dn2 = "/O=EXCHANGELABS/CN=fresh"
+
+    _write_cache_atomic({"acct-1": {dn1: "cached@cb.org"}})
+
+    mock_request.return_value = {
+        "value": [
+            {
+                "id": "u2",
+                "mail": "fresh@cb.org",
+                "proxyAddresses": [f"X500:{dn2}", "SMTP:fresh@cb.org"],
+            }
+        ]
+    }
+
+    result = resolve_dns([dn1, dn2], account_id="acct-1")
+
+    assert mock_request.call_count == 1
+    fresh_call_filter = mock_request.call_args.kwargs["params"]["$filter"]
+    assert dn1 not in fresh_call_filter
+    assert dn2 in fresh_call_filter
+    assert result == {dn1: "cached@cb.org", dn2: "fresh@cb.org"}
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_cache_rebuilds_after_lost_write(mock_request, isolated_cache_file):
+    """Race: a lost write means next call re-queries and re-populates cache cleanly."""
+    dn = "/O=EXCHANGELABS/CN=user1"
+    mock_request.return_value = {
+        "value": [
+            {
+                "id": "u1",
+                "mail": "u1@cb.org",
+                "proxyAddresses": [f"X500:{dn}", "SMTP:u1@cb.org"],
+            }
+        ]
+    }
+
+    # Container A resolves and writes cache.
+    resolve_dns([dn], account_id="acct-1")
+    # Simulate lost write: blow away the cache file.
+    isolated_cache_file.unlink()
+    # Container B (cold cache) re-resolves cleanly.
+    second = resolve_dns([dn], account_id="acct-1")
+
+    assert second == {dn: "u1@cb.org"}
+    assert mock_request.call_count == 2
+    assert _read_cache().get("acct-1", {}).get(dn) == "u1@cb.org"
+
+
+def test_read_cache_handles_missing_file(isolated_cache_file):
+    """Missing cache file returns empty dict."""
+    assert _read_cache() == {}
+
+
+def test_read_cache_handles_corrupt_json(isolated_cache_file):
+    """Corrupt cache file returns empty dict (degrades to no-cache)."""
+    isolated_cache_file.write_text("not valid json{{{")
+    assert _read_cache() == {}
+
+
+def test_write_cache_degrades_when_dir_unwritable(tmp_path, monkeypatch, caplog):
+    """If the shared volume is read-only, cache writes log a warning and degrade."""
+    unwritable = tmp_path / "nonexistent" / "subdir" / "fake_token_cache.json"
+    monkeypatch.setattr("microsoft_mcp.auth.CACHE_FILE", unwritable)
+    tmp_path.chmod(0o555)
+    try:
+        with caplog.at_level(
+            logging.WARNING, logger="microsoft_mcp.address_resolution"
+        ):
+            _write_cache_atomic({"acct-1": {"/O=X/CN=y": "y@cb.org"}})
+        assert any(
+            "cache write failed" in rec.message.lower() for rec in caplog.records
+        )
+    finally:
+        tmp_path.chmod(0o755)
+
+
+# --- Walker ---
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_walker_rewrites_from_field(mock_request, isolated_cache_file):
+    dn = "/O=EXCHANGELABS/CN=tom"
+    mock_request.return_value = {
+        "value": [
+            {
+                "id": "t",
+                "mail": "tbooth@cb.org",
+                "proxyAddresses": [f"X500:{dn}", "SMTP:tbooth@cb.org"],
+            }
+        ]
+    }
+    msg = {
+        "id": "m1",
+        "from": {"emailAddress": {"address": dn, "name": "Tom Booth"}},
+    }
+
+    resolve_x500_in_message(msg, account_id="acct-1")
+
+    assert msg["from"]["emailAddress"]["address"] == "tbooth@cb.org"
+    assert msg["from"]["emailAddress"]["name"] == "Tom Booth"
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_walker_rewrites_recipients_array(mock_request, isolated_cache_file):
+    dn = "/O=EXCHANGELABS/CN=tom"
+    mock_request.return_value = {
+        "value": [
+            {
+                "id": "t",
+                "mail": "tbooth@cb.org",
+                "proxyAddresses": [f"X500:{dn}", "SMTP:tbooth@cb.org"],
+            }
+        ]
+    }
+    msg = {
+        "id": "m1",
+        "toRecipients": [{"emailAddress": {"address": dn, "name": "Tom Booth"}}],
+        "ccRecipients": [],
+    }
+
+    resolve_x500_in_message(msg, account_id="acct-1")
+
+    assert msg["toRecipients"][0]["emailAddress"]["address"] == "tbooth@cb.org"
+    assert msg["ccRecipients"] == []
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_walker_handles_missing_address_field(mock_request, isolated_cache_file):
+    """Drafts and system messages may omit address entirely; walker must not raise."""
+    msg = {"id": "m2", "from": {"emailAddress": {"name": "No Address"}}}
+    resolve_x500_in_message(msg, account_id="acct-1")
+    mock_request.assert_not_called()
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_walker_skips_smtp_addresses(mock_request, isolated_cache_file):
+    """SMTP addresses are not X.500 -- walker must not query Graph for them."""
+    msg = {
+        "id": "m3",
+        "from": {"emailAddress": {"address": "tbooth@cb.org", "name": "Tom"}},
+    }
+    resolve_x500_in_message(msg, account_id="acct-1")
+    mock_request.assert_not_called()
+    assert msg["from"]["emailAddress"]["address"] == "tbooth@cb.org"
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_walker_one_graph_call_for_multiple_x500_in_one_message(
+    mock_request, isolated_cache_file
+):
+    """from + recipients with X.500 -> single batched Graph call."""
+    dn1 = "/O=EXCHANGELABS/CN=user1"
+    dn2 = "/O=EXCHANGELABS/CN=user2"
+    mock_request.return_value = {
+        "value": [
+            {
+                "id": "u1",
+                "mail": "u1@cb.org",
+                "proxyAddresses": [f"X500:{dn1}", "SMTP:u1@cb.org"],
+            },
+            {
+                "id": "u2",
+                "mail": "u2@cb.org",
+                "proxyAddresses": [f"X500:{dn2}", "SMTP:u2@cb.org"],
+            },
+        ]
+    }
+    msg = {
+        "id": "m4",
+        "from": {"emailAddress": {"address": dn1}},
+        "toRecipients": [{"emailAddress": {"address": dn2}}],
+    }
+
+    resolve_x500_in_message(msg, account_id="acct-1")
+
+    assert mock_request.call_count == 1
+    assert msg["from"]["emailAddress"]["address"] == "u1@cb.org"
+    assert msg["toRecipients"][0]["emailAddress"]["address"] == "u2@cb.org"
