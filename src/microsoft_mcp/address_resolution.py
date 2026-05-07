@@ -12,7 +12,7 @@ See docs/plans/2026-05-06-directory-search-and-x500-resolution-design.md.
 import json
 import logging
 import pathlib as pl
-from typing import Any, TypeGuard
+from typing import Any, Iterator, TypeGuard
 
 import httpx
 
@@ -158,46 +158,45 @@ def resolve_dns(dns: list[str], account_id: str) -> dict[str, str | None]:
     return result
 
 
-def _collect_x500_dns(msg: dict[str, Any]) -> list[str]:
-    """Return all distinct X.500 DNs in the message's email-address fields."""
-    seen: set[str] = set()
+def _iter_email_address_dicts(msg: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    """Yield each `emailAddress` dict in msg's address fields.
 
+    Walks both object fields (from/sender/replyTo) and array fields
+    (to/cc/bccRecipients). Yields mutable dicts so callers can rewrite
+    `address` in place. Skips fields that are missing, None, or empty.
+    """
     for field in _OBJECT_FIELDS:
         obj = msg.get(field)
         if not obj:
             continue
-        addr = (obj.get("emailAddress") or {}).get("address")
-        if _is_x500_dn(addr):
-            seen.add(addr)
+        ea = obj.get("emailAddress")
+        if isinstance(ea, dict):
+            yield ea
 
     for field in _ARRAY_FIELDS:
         arr = msg.get(field) or []
         for item in arr:
-            addr = (item.get("emailAddress") or {}).get("address")
-            if _is_x500_dn(addr):
-                seen.add(addr)
+            ea = item.get("emailAddress") if isinstance(item, dict) else None
+            if isinstance(ea, dict):
+                yield ea
 
+
+def _collect_x500_dns(msg: dict[str, Any]) -> list[str]:
+    """Return all distinct X.500 DNs in the message's email-address fields."""
+    seen: set[str] = set()
+    for ea in _iter_email_address_dicts(msg):
+        addr = ea.get("address")
+        if _is_x500_dn(addr):
+            seen.add(addr)
     return list(seen)
 
 
 def _apply_dn_map(msg: dict[str, Any], dn_to_smtp: dict[str, str | None]) -> None:
     """Rewrite every X.500 DN in msg's address fields if a SMTP mapping exists."""
-    for field in _OBJECT_FIELDS:
-        obj = msg.get(field)
-        if not obj:
-            continue
-        ea = obj.get("emailAddress") or {}
+    for ea in _iter_email_address_dicts(msg):
         addr = ea.get("address")
         if _is_x500_dn(addr) and dn_to_smtp.get(addr):
             ea["address"] = dn_to_smtp[addr]
-
-    for field in _ARRAY_FIELDS:
-        arr = msg.get(field) or []
-        for item in arr:
-            ea = item.get("emailAddress") or {}
-            addr = ea.get("address")
-            if _is_x500_dn(addr) and dn_to_smtp.get(addr):
-                ea["address"] = dn_to_smtp[addr]
 
 
 def resolve_x500_in_message(msg: dict[str, Any], account_id: str) -> None:
