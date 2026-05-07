@@ -515,3 +515,20 @@ def test_search_emails_rewrites_x500_in_results(
     rows = search_emails(query="meeting", account_id="acct-1", limit=10)
 
     assert rows[0]["from"]["emailAddress"]["address"] == "tbooth@cb.org"
+
+
+@patch("microsoft_mcp.tools.address_resolution.resolve_dns")
+@patch("microsoft_mcp.tools.graph.request_paginated")
+def test_search_emails_with_folder_rewrites_x500_in_results(
+    mock_paginated, mock_resolve, isolated_cache_file
+):
+    """Folder-scoped search_emails uses request_paginated; results pass through the walker."""
+    dn = "/O=EXCHANGELABS/CN=tom"
+    mock_paginated.return_value = iter(
+        [{"id": "m1", "from": {"emailAddress": {"address": dn, "name": "Tom Booth"}}}]
+    )
+    mock_resolve.return_value = {dn: "tbooth@cb.org"}
+
+    rows = search_emails(query="meeting", account_id="acct-1", limit=10, folder="inbox")
+
+    assert rows[0]["from"]["emailAddress"]["address"] == "tbooth@cb.org"

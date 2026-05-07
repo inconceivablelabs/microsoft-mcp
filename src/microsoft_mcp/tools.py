@@ -1509,14 +1509,17 @@ def search_emails(
         endpoint = f"/me/mailFolders/{folder_path}/messages"
 
         params = {
-            "$search": f'"{query}"',
+            "$search": f'"{_kql_escape_quotes(query)}"',
             "$top": min(limit, 100),
             "$select": "id,subject,from,toRecipients,receivedDateTime,hasAttachments,body,conversationId,isRead,internetMessageId",
         }
 
-        return list(
+        results = list(
             graph.request_paginated(endpoint, account_id, params=params, limit=limit)
         )
+        for msg in results:
+            address_resolution.resolve_x500_in_message(msg, account_id)
+        return results
 
     results = list(graph.search_query(query, ["message"], account_id, limit))
     for msg in results:
