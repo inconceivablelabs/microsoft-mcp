@@ -3,14 +3,12 @@
 import base64
 import io
 import zipfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from microsoft_mcp.tools import (
     _extract_office_xml_text,
     _extract_text_content,
-    _MAX_INLINE_CHARS,
 )
 
 
@@ -95,7 +93,10 @@ class TestExtractOfficeXmlText:
         assert "Expenses" in result
 
     def test_returns_none_for_bad_zip(self):
-        result = _extract_office_xml_text(b"not a zip file", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        result = _extract_office_xml_text(
+            b"not a zip file",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
         assert result is None
 
     def test_returns_none_for_unknown_mime(self):
@@ -106,7 +107,9 @@ class TestExtractOfficeXmlText:
 class TestGetAttachmentInlineContent:
     """Test that get_attachment returns inline content for text-extractable types."""
 
-    def _mock_graph_response(self, content: bytes, content_type: str, name: str = "test.txt"):
+    def _mock_graph_response(
+        self, content: bytes, content_type: str, name: str = "test.txt"
+    ):
         return {
             "name": name,
             "contentType": content_type,
@@ -121,7 +124,9 @@ class TestGetAttachmentInlineContent:
         get_attachment = get_attachment_tool.fn
 
         text = b"Meeting notes from Monday."
-        mock_graph.request.return_value = self._mock_graph_response(text, "text/plain", "notes.txt")
+        mock_graph.request.return_value = self._mock_graph_response(
+            text, "text/plain", "notes.txt"
+        )
 
         save_path = str(tmp_path / "notes.txt")
         result = get_attachment("email1", "att1", "account1", save_path=save_path)
@@ -137,7 +142,9 @@ class TestGetAttachmentInlineContent:
         get_attachment = get_attachment_tool.fn
 
         binary = b"\x89PNG\r\n\x1a\n\x00\x00\x00"
-        mock_graph.request.return_value = self._mock_graph_response(binary, "image/png", "photo.png")
+        mock_graph.request.return_value = self._mock_graph_response(
+            binary, "image/png", "photo.png"
+        )
 
         save_path = str(tmp_path / "photo.png")
         result = get_attachment("email1", "att1", "account1", save_path=save_path)
@@ -152,7 +159,9 @@ class TestGetAttachmentInlineContent:
         get_attachment = get_attachment_tool.fn
 
         large_text = b"x" * 60_000
-        mock_graph.request.return_value = self._mock_graph_response(large_text, "text/plain", "big.txt")
+        mock_graph.request.return_value = self._mock_graph_response(
+            large_text, "text/plain", "big.txt"
+        )
 
         save_path = str(tmp_path / "big.txt")
         result = get_attachment("email1", "att1", "account1", save_path=save_path)
@@ -186,7 +195,9 @@ class TestGetAttachmentInlineContent:
         get_attachment = get_attachment_tool.fn
 
         binary = b"\x89PNG\r\n\x1a\n\x00\x00\x00"
-        mock_graph.request.return_value = self._mock_graph_response(binary, "image/png", "photo.png")
+        mock_graph.request.return_value = self._mock_graph_response(
+            binary, "image/png", "photo.png"
+        )
 
         save_path = str(tmp_path / "photo.png")
         result = get_attachment("email1", "att1", "account1", save_path=save_path)

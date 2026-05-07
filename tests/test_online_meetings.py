@@ -65,12 +65,15 @@ def test_list_meetings_empty_result(mock_request):
 
 # --- get_online_meeting tests ---
 
+
 @patch("microsoft_mcp.tools.graph.request")
 def test_get_online_meeting(mock_request):
     """Should GET /me/onlineMeetings/{meetingId}."""
     mock_request.return_value = {"id": "meeting-1", "subject": "Standup"}
     result = get_online_meeting(meeting_id="meeting-1", account_id="acct-1")
-    mock_request.assert_called_once_with("GET", "/me/onlineMeetings/meeting-1", "acct-1")
+    mock_request.assert_called_once_with(
+        "GET", "/me/onlineMeetings/meeting-1", "acct-1"
+    )
     assert result["subject"] == "Standup"
 
 

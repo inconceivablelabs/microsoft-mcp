@@ -49,7 +49,9 @@ def test_get_ai_insight_path(mock_request):
         "actionItems": [{"title": "Do Y", "ownerDisplayName": "Tom"}],
     }
     result = get_ai_insight(
-        meeting_id="meeting-1", insight_id="insight-1", account_id="user-oid.tenant-id",
+        meeting_id="meeting-1",
+        insight_id="insight-1",
+        account_id="user-oid.tenant-id",
     )
     mock_request.assert_called_once_with(
         "GET",
@@ -64,7 +66,9 @@ def test_get_ai_insight_path(mock_request):
 def test_get_ai_insight_not_found(mock_request):
     mock_request.return_value = None
     try:
-        get_ai_insight(meeting_id="meeting-1", insight_id="nonexistent", account_id="oid.tid")
+        get_ai_insight(
+            meeting_id="meeting-1", insight_id="nonexistent", account_id="oid.tid"
+        )
         assert False, "Expected ValueError"
     except ValueError as e:
         assert "not found" in str(e).lower()

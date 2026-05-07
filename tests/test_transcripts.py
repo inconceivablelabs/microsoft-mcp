@@ -39,11 +39,14 @@ def test_list_transcripts_none_response(mock_request):
 def test_get_transcript_content_vtt(mock_request_text):
     mock_request_text.return_value = "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nHello"
     result = get_transcript_content(
-        meeting_id="meeting-1", transcript_id="transcript-1", account_id="acct-1",
+        meeting_id="meeting-1",
+        transcript_id="transcript-1",
+        account_id="acct-1",
     )
     mock_request_text.assert_called_once_with(
         "/me/onlineMeetings/meeting-1/transcripts/transcript-1/content",
-        "acct-1", accept="text/vtt",
+        "acct-1",
+        accept="text/vtt",
     )
     assert result == "WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nHello"
 
@@ -52,12 +55,15 @@ def test_get_transcript_content_vtt(mock_request_text):
 def test_get_transcript_content_plain(mock_request_text):
     mock_request_text.return_value = "Hello world"
     get_transcript_content(
-        meeting_id="meeting-1", transcript_id="transcript-1",
-        account_id="acct-1", content_format="text/plain",
+        meeting_id="meeting-1",
+        transcript_id="transcript-1",
+        account_id="acct-1",
+        content_format="text/plain",
     )
     mock_request_text.assert_called_once_with(
         "/me/onlineMeetings/meeting-1/transcripts/transcript-1/content",
-        "acct-1", accept="text/plain",
+        "acct-1",
+        accept="text/plain",
     )
 
 
@@ -65,8 +71,10 @@ def test_get_transcript_content_plain(mock_request_text):
 def test_get_transcript_content_truncation(mock_request_text):
     mock_request_text.return_value = "A" * 10000
     result = get_transcript_content(
-        meeting_id="meeting-1", transcript_id="transcript-1",
-        account_id="acct-1", max_length=100,
+        meeting_id="meeting-1",
+        transcript_id="transcript-1",
+        account_id="acct-1",
+        max_length=100,
     )
     assert len(result) <= 150
     assert result.startswith("A" * 100)
@@ -78,6 +86,8 @@ def test_get_transcript_content_no_truncation_by_default(mock_request_text):
     long_content = "A" * 100000
     mock_request_text.return_value = long_content
     result = get_transcript_content(
-        meeting_id="meeting-1", transcript_id="transcript-1", account_id="acct-1",
+        meeting_id="meeting-1",
+        transcript_id="transcript-1",
+        account_id="acct-1",
     )
     assert result == long_content

@@ -19,8 +19,6 @@ def _mock_response(status_code, json_body=None, text_body=None):
     if text_body is not None:
         resp.text = text_body
     resp.content = b"content"
-    # Make raise_for_status behave like real httpx
-    real_response = httpx.Response(status_code, request=httpx.Request("GET", "https://example.com"))
     resp.raise_for_status.side_effect = httpx.HTTPStatusError(
         f"{status_code}", request=resp.request, response=resp
     )
