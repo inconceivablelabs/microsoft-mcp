@@ -1575,7 +1575,7 @@ def search_directory(
             "$select": "displayName,scoredEmailAddresses,jobTitle,department,personType",
         },
     )
-    people_rows = (people_response or {}).get("value", []) if people_response else []
+    people_rows = (people_response or {}).get("value", [])
     if people_rows:
         return [_normalize_people_row(r) for r in people_rows]
 

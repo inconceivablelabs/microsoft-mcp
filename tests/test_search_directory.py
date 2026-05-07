@@ -30,6 +30,7 @@ def test_me_people_primary_returns_normalized_rows(mock_request):
 
     rows = search_directory(query="Brittany", account_id="acct-1", limit=5)
 
+    # /users fallback (added in Task B2) is not invoked when /me/people returns rows.
     assert mock_request.call_count == 1
     call = mock_request.call_args
     assert call.args[0] == "GET"
