@@ -1517,6 +1517,15 @@ def search_emails(
     return list(graph.search_query(query, ["message"], account_id, limit))
 
 
+def _kql_escape_quotes(value: str) -> str:
+    """Escape double quotes for inclusion in a KQL phrase literal.
+
+    Microsoft Graph $search uses KQL syntax where phrases are quoted strings.
+    A literal double-quote inside a phrase must be backslash-escaped.
+    """
+    return value.replace('"', '\\"')
+
+
 @mcp.tool(name="search_contacts")
 def search_contacts(
     query: str,
@@ -1530,7 +1539,7 @@ def search_contacts(
     unified_search doesn't support contacts.
     """
     params = {
-        "$search": f'"{query}"',
+        "$search": f'"{_kql_escape_quotes(query)}"',
         "$top": min(limit, 100),
     }
 
@@ -1587,7 +1596,7 @@ def search_directory(
         "/me/people",
         account_id,
         params={
-            "$search": f'"{query}"',
+            "$search": f'"{_kql_escape_quotes(query)}"',
             "$top": min(limit, 100),
             "$select": "displayName,scoredEmailAddresses,jobTitle,department,personType",
         },
@@ -1601,7 +1610,7 @@ def search_directory(
         "/users",
         account_id,
         params={
-            "$search": f'"displayName:{query}" OR "mail:{query}"',
+            "$search": f'"displayName:{_kql_escape_quotes(query)}" OR "mail:{_kql_escape_quotes(query)}"',
             "$top": min(limit, 100),
             "$select": "id,displayName,mail,userPrincipalName,jobTitle,department",
         },
