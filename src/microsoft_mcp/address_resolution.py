@@ -14,6 +14,11 @@ from microsoft_mcp import graph
 _BATCH_CAP = 15
 
 
+def _odata_escape(value: str) -> str:
+    """Escape single quotes per OData literal-string convention (' -> '')."""
+    return value.replace("'", "''")
+
+
 def _is_x500_dn(address: str | None) -> bool:
     """Return True iff the address is an X.500 legacy DN.
 
@@ -40,7 +45,7 @@ def _resolve_dns_via_graph(dns: list[str], account_id: str) -> dict[str, str | N
     for start in range(0, len(dns), _BATCH_CAP):
         batch = dns[start : start + _BATCH_CAP]
         filter_expr = " or ".join(
-            f"proxyAddresses/any(p:p eq 'X500:{dn}')" for dn in batch
+            f"proxyAddresses/any(p:p eq 'X500:{_odata_escape(dn)}')" for dn in batch
         )
         response = graph.request(
             "GET",

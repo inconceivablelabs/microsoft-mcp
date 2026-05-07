@@ -114,3 +114,72 @@ def test_resolver_caps_batch_at_15_dns(mock_request):
 
     _resolve_dns_via_graph(dns, account_id="acct-1")
     assert mock_request.call_count == 2
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_resolver_handles_user_with_multiple_x500_entries(mock_request):
+    """User has multiple X500 entries; only the requested DN gets mapped."""
+    requested_dn = "/O=EXCHANGELABS/CN=user1-current"
+    legacy_dn = "/O=OLDORG/CN=user1-legacy"  # Not requested.
+    mock_request.return_value = {
+        "value": [
+            {
+                "id": "u1",
+                "mail": "user1@cb.org",
+                "proxyAddresses": [
+                    f"X500:{requested_dn}",
+                    f"X500:{legacy_dn}",
+                    "SMTP:user1@cb.org",
+                ],
+            }
+        ]
+    }
+    result = _resolve_dns_via_graph([requested_dn], account_id="acct-1")
+    assert result == {requested_dn: "user1@cb.org"}
+    assert legacy_dn not in result
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_resolver_ignores_unrelated_users_in_response(mock_request):
+    """Graph may return users whose X500 entries don't match the request."""
+    requested_dn = "/O=EXCHANGELABS/CN=wanted"
+    unrelated_dn = "/O=EXCHANGELABS/CN=unrelated"
+    mock_request.return_value = {
+        "value": [
+            {
+                "id": "u1",
+                "mail": "wanted@cb.org",
+                "proxyAddresses": [
+                    f"X500:{requested_dn}",
+                    "SMTP:wanted@cb.org",
+                ],
+            },
+            {
+                "id": "u2",
+                "mail": "unrelated@cb.org",
+                "proxyAddresses": [
+                    f"X500:{unrelated_dn}",
+                    "SMTP:unrelated@cb.org",
+                ],
+            },
+        ]
+    }
+    result = _resolve_dns_via_graph([requested_dn], account_id="acct-1")
+    assert result == {requested_dn: "wanted@cb.org"}
+
+
+@patch("microsoft_mcp.address_resolution.graph.request")
+def test_resolver_handles_null_mail_on_returned_user(mock_request):
+    """If a matching user has mail=None, the DN maps to None (not an error)."""
+    dn = "/O=EXCHANGELABS/CN=shared-mailbox"
+    mock_request.return_value = {
+        "value": [
+            {
+                "id": "u1",
+                "mail": None,
+                "proxyAddresses": [f"X500:{dn}", "smtp:shared@cb.org"],
+            }
+        ]
+    }
+    result = _resolve_dns_via_graph([dn], account_id="acct-1")
+    assert result == {dn: None}
