@@ -17,6 +17,15 @@ from microsoft_mcp.address_resolution import (
     resolve_dns,
     resolve_x500_in_message,
 )
+from microsoft_mcp.tools import (
+    get_email as _get_email_tool,
+    list_emails as _list_emails_tool,
+    search_emails as _search_emails_tool,
+)
+
+list_emails = _list_emails_tool.fn
+get_email = _get_email_tool.fn
+search_emails = _search_emails_tool.fn
 
 
 # --- Detector ---
@@ -454,3 +463,55 @@ def test_walker_one_graph_call_for_multiple_x500_in_one_message(
     assert mock_request.call_count == 1
     assert msg["from"]["emailAddress"]["address"] == "u1@cb.org"
     assert msg["toRecipients"][0]["emailAddress"]["address"] == "u2@cb.org"
+
+
+# --- Tool integration ---
+
+
+@patch("microsoft_mcp.tools.address_resolution.resolve_dns")
+@patch("microsoft_mcp.tools.graph.request_paginated")
+def test_list_emails_rewrites_x500_in_results(
+    mock_paginated, mock_resolve, isolated_cache_file
+):
+    dn = "/O=EXCHANGELABS/CN=tom"
+    mock_paginated.return_value = iter(
+        [{"id": "m1", "from": {"emailAddress": {"address": dn, "name": "Tom Booth"}}}]
+    )
+    mock_resolve.return_value = {dn: "tbooth@cb.org"}
+
+    rows = list_emails(account_id="acct-1", folder="inbox", limit=5, include_body=False)
+
+    assert rows[0]["from"]["emailAddress"]["address"] == "tbooth@cb.org"
+
+
+@patch("microsoft_mcp.tools.address_resolution.resolve_dns")
+@patch("microsoft_mcp.tools.graph.request")
+def test_get_email_rewrites_x500_in_single_message(
+    mock_request, mock_resolve, isolated_cache_file
+):
+    dn = "/O=EXCHANGELABS/CN=tom"
+    mock_request.return_value = {
+        "id": "m1",
+        "from": {"emailAddress": {"address": dn, "name": "Tom Booth"}},
+    }
+    mock_resolve.return_value = {dn: "tbooth@cb.org"}
+
+    msg = get_email(email_id="m1", account_id="acct-1")
+    assert msg["from"]["emailAddress"]["address"] == "tbooth@cb.org"
+
+
+@patch("microsoft_mcp.tools.address_resolution.resolve_dns")
+@patch("microsoft_mcp.tools.graph.search_query")
+def test_search_emails_rewrites_x500_in_results(
+    mock_search, mock_resolve, isolated_cache_file
+):
+    """search_emails uses POST /search/query; results pass through the walker."""
+    dn = "/O=EXCHANGELABS/CN=tom"
+    mock_search.return_value = iter(
+        [{"id": "m1", "from": {"emailAddress": {"address": dn, "name": "Tom Booth"}}}]
+    )
+    mock_resolve.return_value = {dn: "tbooth@cb.org"}
+
+    rows = search_emails(query="meeting", account_id="acct-1", limit=10)
+
+    assert rows[0]["from"]["emailAddress"]["address"] == "tbooth@cb.org"

@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 from typing import Any
 from fastmcp import FastMCP
-from . import graph, auth
+from . import graph, auth, address_resolution
 
 mcp = FastMCP("microsoft-365")
 
@@ -217,6 +217,9 @@ def list_emails(
         )
     )
 
+    # Apply X.500 DN → SMTP rewriting in place (pa-jsa6).
+    for msg in emails:
+        address_resolution.resolve_x500_in_message(msg, account_id)
     return emails
 
 
@@ -264,6 +267,7 @@ def get_email(
             if "contentBytes" in attachment:
                 del attachment["contentBytes"]
 
+    address_resolution.resolve_x500_in_message(result, account_id)
     return result
 
 
@@ -1514,7 +1518,10 @@ def search_emails(
             graph.request_paginated(endpoint, account_id, params=params, limit=limit)
         )
 
-    return list(graph.search_query(query, ["message"], account_id, limit))
+    results = list(graph.search_query(query, ["message"], account_id, limit))
+    for msg in results:
+        address_resolution.resolve_x500_in_message(msg, account_id)
+    return results
 
 
 def _kql_escape_quotes(value: str) -> str:
