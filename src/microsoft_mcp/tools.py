@@ -1536,6 +1536,53 @@ def search_contacts(
     return contacts
 
 
+def _normalize_people_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a /me/people response row to the search_directory shape."""
+    scored = row.get("scoredEmailAddresses") or []
+    email = scored[0].get("address") if scored else None
+    person_type_obj = row.get("personType") or {}
+    return {
+        "name": row.get("displayName"),
+        "email": email,
+        "job_title": row.get("jobTitle"),
+        "department": row.get("department"),
+        "person_type": person_type_obj.get("subclass"),
+        "source": "people",
+    }
+
+
+@mcp.tool(name="search_directory")
+def search_directory(
+    query: str,
+    account_id: str,
+    limit: int = 25,
+) -> list[dict[str, Any]]:
+    """Search the organization directory for people by name or email.
+
+    Returns relevance-ranked correspondents first (via /me/people), falling
+    back to full directory search (via /users) for non-correspondents.
+
+    Distinct from search_contacts, which only searches the user's personal
+    address book (/me/contacts).
+    """
+    people_response = graph.request(
+        "GET",
+        "/me/people",
+        account_id,
+        params={
+            "$search": f'"{query}"',
+            "$top": min(limit, 100),
+            "$select": "displayName,scoredEmailAddresses,jobTitle,department,personType",
+        },
+    )
+    people_rows = (people_response or {}).get("value", []) if people_response else []
+    if people_rows:
+        return [_normalize_people_row(r) for r in people_rows]
+
+    # Fallback path implemented in Task B2.
+    return []
+
+
 @mcp.tool(name="unified_search")
 def unified_search(
     query: str,

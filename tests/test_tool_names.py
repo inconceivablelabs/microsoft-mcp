@@ -86,6 +86,6 @@ def test_expected_meeting_tools_exist():
 
 def test_tool_count_unchanged():
     """Guard against accidentally dropping tools during rename."""
-    assert len(TOOL_REGISTRY) == 42, (
-        f"Expected 42 tools, found {len(TOOL_REGISTRY)}: {sorted(TOOL_REGISTRY.keys())}"
+    assert len(TOOL_REGISTRY) == 43, (
+        f"Expected 43 tools, found {len(TOOL_REGISTRY)}: {sorted(TOOL_REGISTRY.keys())}"
     )
