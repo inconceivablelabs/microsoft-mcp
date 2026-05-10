@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 _BATCH_CAP = 15
 _CACHE_FILENAME = ".microsoft_mcp_x500_cache.json"
 
-_OBJECT_FIELDS = ("from", "sender", "replyTo")
-_ARRAY_FIELDS = ("toRecipients", "ccRecipients", "bccRecipients")
+_OBJECT_FIELDS = ("from", "sender")
+_ARRAY_FIELDS = ("toRecipients", "ccRecipients", "bccRecipients", "replyTo")
 
 
 def _odata_escape(value: str) -> str:
@@ -161,13 +161,15 @@ def resolve_dns(dns: list[str], account_id: str) -> dict[str, str | None]:
 def _iter_email_address_dicts(msg: dict[str, Any]) -> Iterator[dict[str, Any]]:
     """Yield each `emailAddress` dict in msg's address fields.
 
-    Walks both object fields (from/sender/replyTo) and array fields
-    (to/cc/bccRecipients). Yields mutable dicts so callers can rewrite
-    `address` in place. Skips fields that are missing, None, or empty.
+    Walks both object fields (from, sender) and array fields
+    (to/cc/bccRecipients, replyTo). Yields mutable dicts so callers can
+    rewrite `address` in place. Skips fields that are missing, None, empty,
+    or shape-surprising (defense in depth: a list where a dict was expected,
+    or vice versa, is silently skipped rather than crashing the tool call).
     """
     for field in _OBJECT_FIELDS:
         obj = msg.get(field)
-        if not obj:
+        if not isinstance(obj, dict):
             continue
         ea = obj.get("emailAddress")
         if isinstance(ea, dict):
@@ -202,9 +204,9 @@ def _apply_dn_map(msg: dict[str, Any], dn_to_smtp: dict[str, str | None]) -> Non
 def resolve_x500_in_message(msg: dict[str, Any], account_id: str) -> None:
     """Rewrite X.500 DNs in msg's email-address fields to SMTP, in place.
 
-    Handles both object fields (from, sender, replyTo) and array fields
-    (toRecipients, ccRecipients, bccRecipients). Fail-open: on resolver
-    error or no-match, the X.500 DN is left in place.
+    Handles both object fields (from, sender) and array fields
+    (toRecipients, ccRecipients, bccRecipients, replyTo). Fail-open: on
+    resolver error or no-match, the X.500 DN is left in place.
     """
     dns = _collect_x500_dns(msg)
     if not dns:
