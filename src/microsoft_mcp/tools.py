@@ -4,6 +4,8 @@ import pathlib as pl
 import subprocess
 import tempfile
 from typing import Any
+
+import httpx
 from fastmcp import FastMCP
 from . import graph, auth, address_resolution
 
@@ -1267,8 +1269,6 @@ def list_files(
 @mcp.tool(name="get_file")
 def get_file(file_id: str, account_id: str, download_path: str) -> dict[str, Any]:
     """Download a file from OneDrive to local path"""
-    import subprocess
-
     metadata = graph.request("GET", f"/me/drive/items/{file_id}", account_id)
     if not metadata:
         raise ValueError(f"File with ID {file_id} not found")
@@ -1277,21 +1277,26 @@ def get_file(file_id: str, account_id: str, download_path: str) -> dict[str, Any
     if not download_url:
         raise ValueError("No download URL available for this file")
 
-    try:
-        subprocess.run(
-            ["curl", "-L", "-o", download_path, download_url],
-            check=True,
-            capture_output=True,
-        )
+    # Stream to disk so large attachments don't pull into memory. We use a
+    # fresh httpx.stream rather than the module-level client in graph.py
+    # because its 30s default is too tight for big OneDrive downloads, and
+    # the download URL is pre-authenticated (no need for Graph auth headers).
+    # pa-r9ej: this previously shelled out to curl, which broke when the
+    # container image lacked curl (raised FileNotFoundError uncaught).
+    with httpx.stream(
+        "GET", download_url, follow_redirects=True, timeout=60.0
+    ) as response:
+        response.raise_for_status()
+        with open(download_path, "wb") as f:
+            for chunk in response.iter_bytes():
+                f.write(chunk)
 
-        return {
-            "path": download_path,
-            "name": metadata.get("name", "unknown"),
-            "size_mb": round(metadata.get("size", 0) / (1024 * 1024), 2),
-            "mime_type": metadata.get("file", {}).get("mimeType") if metadata else None,
-        }
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Failed to download file: {e.stderr.decode()}")
+    return {
+        "path": download_path,
+        "name": metadata.get("name", "unknown"),
+        "size_mb": round(metadata.get("size", 0) / (1024 * 1024), 2),
+        "mime_type": metadata.get("file", {}).get("mimeType") if metadata else None,
+    }
 
 
 @mcp.tool(name="create_file")
