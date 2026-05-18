@@ -34,5 +34,5 @@ jobs:
       - name: ruff format --check
         run: uv run ruff format --check src/ tests/
 
-      - name: pyright (src/)
-        run: uv run pyright src/
+      - name: pyright (src/ + tests/)
+        run: uv run pyright src/ tests/

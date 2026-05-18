@@ -39,11 +39,9 @@ Pre-commit hooks and CI both run `ruff check`, `ruff format --check`, and `pyrig
 pre-commit install
 ```
 
-**Scope:**
-- `ruff check` / `ruff format --check` — runs on `src/` AND `tests/` (pre-commit lints staged files, CI lints both trees).
-- `pyright` — `src/` only. Test-file pyright errors slip through committing. When adding non-trivial test code, run `uv run pyright tests/<file>.py` manually before committing.
+**Scope:** all three gates (`ruff check`, `ruff format --check`, `pyright`) run on `src/` AND `tests/` in both pre-commit and CI.
 
-CI workflow is `.github/workflows/quality.yml` — same three checks on PR and push to main/master.
+CI workflow is `.github/workflows/quality.yml`.
 
 ## Graph API Lessons
 

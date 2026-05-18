@@ -21,12 +21,14 @@ class TestExtractTextContent:
     def test_extracts_text_csv(self):
         content = b"name,age\nAlice,30\nBob,25"
         result = _extract_text_content(content, "text/csv")
+        assert result is not None
         assert "Alice" in result
         assert "Bob" in result
 
     def test_extracts_text_html(self):
         content = b"<html><body><p>Hello</p></body></html>"
         result = _extract_text_content(content, "text/html")
+        assert result is not None
         assert "<p>Hello</p>" in result
 
     def test_returns_none_for_binary(self):
@@ -89,6 +91,7 @@ class TestExtractOfficeXmlText:
         xlsx_bytes = self._make_xlsx(["Revenue", "Expenses", "Profit"])
         mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         result = _extract_office_xml_text(xlsx_bytes, mime)
+        assert result is not None
         assert "Revenue" in result
         assert "Expenses" in result
 

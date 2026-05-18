@@ -2,6 +2,7 @@ import os
 import asyncio
 import json
 from datetime import datetime, timedelta, timezone
+from typing import Any
 import pytest
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -16,8 +17,13 @@ if not os.getenv("MICROSOFT_MCP_CLIENT_ID"):
     )
 
 
-def parse_result(result, tool_name=None):
-    """Helper to parse MCP tool results consistently"""
+def parse_result(result: Any, tool_name: str | None = None) -> Any:
+    """Helper to parse MCP tool results consistently.
+
+    Returns list-shape for list_tools, dict-shape for everything else.
+    Typed as Any so callers can use both .get() and [key] without per-call
+    narrowing — this is an integration-test JSON helper, not production code.
+    """
     if result.content and hasattr(result.content[0], "text"):
         text = result.content[0].text
         if text == "[]":
