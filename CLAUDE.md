@@ -31,6 +31,20 @@ uv run ruff format --check src/ tests/
 uv run pyright src/
 ```
 
+## Quality Gates
+
+Pre-commit hooks and CI both run `ruff check`, `ruff format --check`, and `pyright`. Install hooks once after cloning:
+
+```bash
+pre-commit install
+```
+
+**Scope:**
+- `ruff check` / `ruff format --check` — runs on `src/` AND `tests/` (pre-commit lints staged files, CI lints both trees).
+- `pyright` — `src/` only. Test-file pyright errors slip through committing. When adding non-trivial test code, run `uv run pyright tests/<file>.py` manually before committing.
+
+CI workflow is `.github/workflows/quality.yml` — same three checks on PR and push to main/master.
+
 ## Graph API Lessons
 
 - **`/me/calendarView`** returns individual recurring event instances; **`/me/events`** only returns series masters. Use calendarView for listing events.
