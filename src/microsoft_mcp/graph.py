@@ -18,15 +18,18 @@ def request(
     json: dict[str, Any] | None = None,
     data: bytes | None = None,
     max_retries: int = 3,
+    prefer_body_text: bool = False,
 ) -> dict[str, Any] | None:
     headers = {
         "Authorization": f"Bearer {get_token(account_id)}",
     }
 
     if method == "GET":
-        if "$search" in (params or {}):
-            headers["Prefer"] = 'outlook.body-content-type="text"'
-        elif "body" in (params or {}).get("$select", ""):
+        if (
+            prefer_body_text
+            or "$search" in (params or {})
+            or "body" in (params or {}).get("$select", "")
+        ):
             headers["Prefer"] = 'outlook.body-content-type="text"'
     else:
         headers["Content-Type"] = (
