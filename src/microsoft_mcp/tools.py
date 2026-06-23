@@ -3,7 +3,7 @@ import datetime as dt
 import pathlib as pl
 import subprocess
 import tempfile
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from fastmcp import FastMCP
@@ -232,6 +232,7 @@ def get_email(
     include_body: bool = True,
     body_max_length: int = 50000,
     include_attachments: bool = True,
+    body_format: Literal["text", "html"] = "text",
 ) -> dict[str, Any]:
     """Get email details with size limits
 
@@ -241,12 +242,19 @@ def get_email(
         include_body: Whether to include the email body (default: True)
         body_max_length: Maximum characters for body content (default: 50000)
         include_attachments: Whether to include attachment metadata (default: True)
+        body_format: Body format — 'text' (default, markup-free) or 'html' (raw stored HTML)
     """
     params = {}
     if include_attachments:
         params["$expand"] = "attachments($select=id,name,size,contentType)"
 
-    result = graph.request("GET", f"/me/messages/{email_id}", account_id, params=params)
+    result = graph.request(
+        "GET",
+        f"/me/messages/{email_id}",
+        account_id,
+        params=params,
+        prefer_body_text=(body_format == "text"),
+    )
     if not result:
         raise ValueError(f"Email with ID {email_id} not found")
 
