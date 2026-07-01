@@ -33,30 +33,30 @@ def _resolve_folder_id(folder_name: str, account_id: str) -> str | None:
     custom display name returns ErrorInvalidIdMalformed. Callers should
     use this when the name isn't in FOLDERS.
 
+    Uses request_paginated (not request) — Graph returns only ~10
+    folders per page by default, and newly-created folders sort last in
+    the default childFolders order, so a non-paginated listing silently
+    misses them (mcp-fk1).
+
     Returns the folder ID, or None if no match is found.
     """
-    folders = graph.request("GET", "/me/mailFolders", account_id)
-    if not folders or "value" not in folders:
-        return None
-
     target = folder_name.lower()
 
+    top_folders = list(graph.request_paginated("/me/mailFolders", account_id))
+
     # Top-level folders
-    for folder in folders["value"]:
+    for folder in top_folders:
         if folder["displayName"].lower() == target:
             return folder["id"]
 
     # Child folders, one level deep
-    for parent in folders["value"]:
-        children = graph.request(
-            "GET",
-            f"/me/mailFolders/{parent['id']}/childFolders",
-            account_id,
+    for parent in top_folders:
+        children = graph.request_paginated(
+            f"/me/mailFolders/{parent['id']}/childFolders", account_id
         )
-        if children and "value" in children:
-            for child in children["value"]:
-                if child["displayName"].lower() == target:
-                    return child["id"]
+        for child in children:
+            if child["displayName"].lower() == target:
+                return child["id"]
 
     return None
 
@@ -531,36 +531,7 @@ def move_email(
     """
     folder_path = FOLDERS.get(destination_folder.casefold(), destination_folder)
 
-    folders = graph.request("GET", "/me/mailFolders", account_id)
-    folder_id = None
-
-    if not folders:
-        raise ValueError("Failed to retrieve mail folders")
-    if "value" not in folders:
-        raise ValueError(f"Unexpected folder response structure: {folders}")
-
-    # Search top-level folders
-    for folder in folders["value"]:
-        if folder["displayName"].lower() == folder_path.lower():
-            folder_id = folder["id"]
-            break
-
-    # If not found, search child folders one level deep
-    if not folder_id:
-        for parent in folders["value"]:
-            children = graph.request(
-                "GET",
-                f"/me/mailFolders/{parent['id']}/childFolders",
-                account_id,
-            )
-            if children and "value" in children:
-                for child in children["value"]:
-                    if child["displayName"].lower() == folder_path.lower():
-                        folder_id = child["id"]
-                        break
-            if folder_id:
-                break
-
+    folder_id = _resolve_folder_id(folder_path, account_id)
     if not folder_id:
         raise ValueError(f"Folder '{destination_folder}' not found")
 
