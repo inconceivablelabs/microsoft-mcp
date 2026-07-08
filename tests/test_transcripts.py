@@ -14,8 +14,9 @@ def test_list_transcripts(mock_request):
         "value": [{"id": "transcript-1", "createdDateTime": "2026-03-27T10:00:00Z"}]
     }
     result = list_transcripts(meeting_id="meeting-1", account_id="acct-1")
+    # Now routed through request_paginated, which calls request with params=None.
     mock_request.assert_called_once_with(
-        "GET", "/me/onlineMeetings/meeting-1/transcripts", "acct-1"
+        "GET", "/me/onlineMeetings/meeting-1/transcripts", "acct-1", params=None
     )
     assert len(result) == 1
     assert result[0]["id"] == "transcript-1"
@@ -33,6 +34,36 @@ def test_list_transcripts_none_response(mock_request):
     mock_request.return_value = None
     result = list_transcripts(meeting_id="meeting-1", account_id="acct-1")
     assert result == []
+
+
+@patch("microsoft_mcp.tools.graph.request")
+def test_list_transcripts_follows_pagination(mock_request):
+    """Graph paginates /transcripts (~20/page). list_transcripts must follow
+    @odata.nextLink and return ALL transcripts, not just the first page.
+    Regression: the tool used graph.request (single page) and silently dropped
+    everything beyond ~20 (pa-umrt)."""
+    page1 = {
+        "value": [
+            {"id": f"t{i}", "createdDateTime": "2026-01-01T00:00:00Z"}
+            for i in range(20)
+        ],
+        "@odata.nextLink": (
+            "https://graph.microsoft.com/v1.0/me/onlineMeetings/meeting-1/transcripts?$skiptoken=abc"
+        ),
+    }
+    page2 = {
+        "value": [
+            {"id": f"t{i}", "createdDateTime": "2026-01-01T00:00:00Z"}
+            for i in range(20, 25)
+        ]
+    }
+    mock_request.side_effect = [page1, page2]
+
+    result = list_transcripts(meeting_id="meeting-1", account_id="acct-1")
+
+    assert len(result) == 25, "should aggregate across all pages, not cap at the first"
+    assert [r["id"] for r in result] == [f"t{i}" for i in range(25)]
+    assert mock_request.call_count == 2, "should have followed the nextLink to page 2"
 
 
 @patch("microsoft_mcp.tools.graph.request_text")

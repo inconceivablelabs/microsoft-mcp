@@ -1031,12 +1031,14 @@ def list_transcripts(meeting_id: str, account_id: str) -> list[dict[str, Any]]:
         List of transcript metadata objects (id, createdDateTime, contentCorrelationId).
         Returns empty list if no transcripts exist or transcription was not enabled.
     """
-    result = graph.request(
-        "GET", f"/me/onlineMeetings/{meeting_id}/transcripts", account_id
+    # Graph paginates this collection (~20/page). Use request_paginated to follow
+    # @odata.nextLink and return ALL transcripts — plain graph.request returns only
+    # the first page and silently drops the rest (pa-umrt).
+    return list(
+        graph.request_paginated(
+            f"/me/onlineMeetings/{meeting_id}/transcripts", account_id
+        )
     )
-    if not result:
-        return []
-    return result.get("value", [])
 
 
 @mcp.tool(name="get_transcript_content")
