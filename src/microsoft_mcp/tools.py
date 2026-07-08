@@ -1031,12 +1031,16 @@ def list_transcripts(meeting_id: str, account_id: str) -> list[dict[str, Any]]:
         List of transcript metadata objects (id, createdDateTime, contentCorrelationId).
         Returns empty list if no transcripts exist or transcription was not enabled.
     """
-    # Graph paginates this collection (~20/page). Use request_paginated to follow
-    # @odata.nextLink and return ALL transcripts — plain graph.request returns only
-    # the first page and silently drops the rest (pa-umrt).
+    # Graph caps this collection at a default page of ~20. Pass an explicit $top
+    # (Graph allows up to 999) AND use request_paginated to follow @odata.nextLink,
+    # so ALL transcripts come back — plain graph.request returned only the first ~20
+    # and silently dropped the rest (pa-umrt). Mirrors list_emails/list_contacts,
+    # which all pass $top; omitting it left Graph on its 20-item default.
     return list(
         graph.request_paginated(
-            f"/me/onlineMeetings/{meeting_id}/transcripts", account_id
+            f"/me/onlineMeetings/{meeting_id}/transcripts",
+            account_id,
+            params={"$top": 999},
         )
     )
 

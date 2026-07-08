@@ -14,9 +14,13 @@ def test_list_transcripts(mock_request):
         "value": [{"id": "transcript-1", "createdDateTime": "2026-03-27T10:00:00Z"}]
     }
     result = list_transcripts(meeting_id="meeting-1", account_id="acct-1")
-    # Now routed through request_paginated, which calls request with params=None.
+    # Routed through request_paginated with an explicit $top so Graph doesn't
+    # cap the response at its ~20-item default page.
     mock_request.assert_called_once_with(
-        "GET", "/me/onlineMeetings/meeting-1/transcripts", "acct-1", params=None
+        "GET",
+        "/me/onlineMeetings/meeting-1/transcripts",
+        "acct-1",
+        params={"$top": 999},
     )
     assert len(result) == 1
     assert result[0]["id"] == "transcript-1"
