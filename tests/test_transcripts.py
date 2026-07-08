@@ -20,7 +20,7 @@ def test_list_transcripts(mock_request):
         "GET",
         "/me/onlineMeetings/meeting-1/transcripts",
         "acct-1",
-        params={"$top": 999},
+        params={"$top": 100},
     )
     assert len(result) == 1
     assert result[0]["id"] == "transcript-1"

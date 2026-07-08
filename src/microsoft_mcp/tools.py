@@ -1032,15 +1032,16 @@ def list_transcripts(meeting_id: str, account_id: str) -> list[dict[str, Any]]:
         Returns empty list if no transcripts exist or transcription was not enabled.
     """
     # Graph caps this collection at a default page of ~20. Pass an explicit $top
-    # (Graph allows up to 999) AND use request_paginated to follow @odata.nextLink,
-    # so ALL transcripts come back — plain graph.request returned only the first ~20
-    # and silently dropped the rest (pa-umrt). Mirrors list_emails/list_contacts,
-    # which all pass $top; omitting it left Graph on its 20-item default.
+    # AND use request_paginated to follow @odata.nextLink, so ALL transcripts come
+    # back — plain graph.request returned only the first ~20 and silently dropped
+    # the rest (pa-umrt). $top=100: this Teams endpoint rejects large values (999 →
+    # 400; Teams APIs cap ~250), and 100 is the page size the sibling list tools use;
+    # request_paginated pages through anything beyond it.
     return list(
         graph.request_paginated(
             f"/me/onlineMeetings/{meeting_id}/transcripts",
             account_id,
-            params={"$top": 999},
+            params={"$top": 100},
         )
     )
 
