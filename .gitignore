@@ -44,3 +44,6 @@ htmlcov/
 *.db
 .beads
 .beads-credential-key  # legacy: now lives in project-internals
+
+# Internal design/plan docs live in project-internals/microsoft-mcp/plans/ (mcp-te7)
+/docs/plans/

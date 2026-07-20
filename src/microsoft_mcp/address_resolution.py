@@ -6,7 +6,7 @@ NDRs, etc. This module detects those, resolves them to SMTP via
 /users $filter on proxyAddresses, caches results in a shared-volume
 JSON file, and rewrites message dicts in place.
 
-See docs/plans/2026-05-06-directory-search-and-x500-resolution-design.md.
+Design: project-internals/microsoft-mcp/plans/2026-05-06-directory-search-and-x500-resolution-design.md.
 """
 
 import json
