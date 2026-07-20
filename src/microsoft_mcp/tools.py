@@ -1144,6 +1144,43 @@ def get_ai_insight(meeting_id: str, insight_id: str, account_id: str) -> dict[st
     return result
 
 
+# --- Meeting attendance reports (mcp-b49) ---
+
+
+@mcp.tool(name="list_attendance_reports")
+def list_attendance_reports(meeting_id: str, account_id: str) -> list[dict[str, Any]]:
+    """List Teams attendance-report occurrences for an online meeting.
+
+    A recurring meeting has ONE attendance report per occurrence (session),
+    all under the same online-meeting id. Use get_attendance_report with a
+    returned report_id to fetch per-participant attendance for one occurrence.
+
+    Args:
+        meeting_id: The online meeting ID (from list_online_meetings), NOT
+            the calendar event id.
+        account_id: UUID from list_accounts (not an email address)
+
+    Returns:
+        One entry per occurrence: {report_id, meeting_start, meeting_end,
+        participant_count}. Empty list if the meeting has no attendance
+        reports (e.g. never occurred, or not a Teams meeting).
+    """
+    reports = graph.request_paginated(
+        f"/me/onlineMeetings/{meeting_id}/attendanceReports",
+        account_id,
+        params={"$top": 100},
+    )
+    return [
+        {
+            "report_id": r.get("id"),
+            "meeting_start": r.get("meetingStartDateTime"),
+            "meeting_end": r.get("meetingEndDateTime"),
+            "participant_count": r.get("totalParticipantCount"),
+        }
+        for r in reports
+    ]
+
+
 @mcp.tool(name="list_contacts")
 def list_contacts(account_id: str, limit: int = 50) -> list[dict[str, Any]]:
     """List contacts"""
