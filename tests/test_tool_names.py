@@ -80,6 +80,7 @@ def test_expected_meeting_tools_exist():
         "list_ai_insights",
         "get_ai_insight",
         "list_attendance_reports",
+        "get_attendance_report",
     ]
     for name in expected:
         assert name in TOOL_REGISTRY, f"Expected tool '{name}' not found"
@@ -87,6 +88,6 @@ def test_expected_meeting_tools_exist():
 
 def test_tool_count_unchanged():
     """Guard against accidentally dropping tools during rename."""
-    assert len(TOOL_REGISTRY) == 44, (
-        f"Expected 44 tools, found {len(TOOL_REGISTRY)}: {sorted(TOOL_REGISTRY.keys())}"
+    assert len(TOOL_REGISTRY) == 45, (
+        f"Expected 45 tools, found {len(TOOL_REGISTRY)}: {sorted(TOOL_REGISTRY.keys())}"
     )

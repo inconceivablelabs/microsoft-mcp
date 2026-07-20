@@ -1165,6 +1165,7 @@ def list_attendance_reports(meeting_id: str, account_id: str) -> list[dict[str, 
         participant_count}. Empty list if the meeting has no attendance
         reports (e.g. never occurred, or not a Teams meeting).
     """
+    # $top=100 mirrors list_transcripts (Teams caps ~250; 999 → 400); request_paginated pages beyond it.
     reports = graph.request_paginated(
         f"/me/onlineMeetings/{meeting_id}/attendanceReports",
         account_id,
@@ -1179,6 +1180,78 @@ def list_attendance_reports(meeting_id: str, account_id: str) -> list[dict[str, 
         }
         for r in reports
     ]
+
+
+@mcp.tool(name="get_attendance_report")
+def get_attendance_report(
+    meeting_id: str, report_id: str, account_id: str
+) -> dict[str, Any]:
+    """Get per-participant attendance for ONE meeting occurrence.
+
+    Returns authoritative "who showed" data — join/leave intervals, total
+    attendance duration, role, and identity — for the given attendance
+    report (one occurrence of the meeting).
+
+    Args:
+        meeting_id: The online meeting ID (from list_online_meetings), NOT
+            the calendar event id.
+        report_id: An attendance report ID (from list_attendance_reports).
+        account_id: UUID from list_accounts (not an email address)
+
+    Returns:
+        {meeting_start, meeting_end, participant_count, participants: [
+            {name, email, id, role, total_seconds,
+             intervals: [{join, leave, seconds}]}, ...]}
+
+    Raises:
+        ValueError: if the report is not found.
+    """
+    report = graph.request(
+        "GET",
+        f"/me/onlineMeetings/{meeting_id}/attendanceReports/{report_id}",
+        account_id,
+    )
+    if not report:
+        raise ValueError(
+            f"Attendance report not found: meeting={meeting_id} report={report_id}"
+        )
+
+    # Fetch records via their own paginated child collection — NOT
+    # $expand=attendanceRecords, which Graph itself pages and would silently
+    # truncate a large meeting (mcp-fk1 class silent-first-page bug).
+    records = graph.request_paginated(
+        f"/me/onlineMeetings/{meeting_id}/attendanceReports/{report_id}/attendanceRecords",
+        account_id,
+        params={"$top": 100},
+    )
+
+    participants = []
+    for rec in records:
+        idn = rec.get("identity") or {}  # None for external/anonymous attendees
+        participants.append(
+            {
+                "name": idn.get("displayName") or rec.get("emailAddress") or "Unknown",
+                "email": rec.get("emailAddress") or "",
+                "id": idn.get("id"),
+                "role": rec.get("role"),
+                "total_seconds": rec.get("totalAttendanceInSeconds") or 0,
+                "intervals": [
+                    {
+                        "join": iv.get("joinDateTime"),
+                        "leave": iv.get("leaveDateTime"),
+                        "seconds": iv.get("durationInSeconds"),
+                    }
+                    for iv in (rec.get("attendanceIntervals") or [])
+                ],
+            }
+        )
+
+    return {
+        "meeting_start": report.get("meetingStartDateTime"),
+        "meeting_end": report.get("meetingEndDateTime"),
+        "participant_count": report.get("totalParticipantCount"),
+        "participants": participants,
+    }
 
 
 @mcp.tool(name="list_contacts")
