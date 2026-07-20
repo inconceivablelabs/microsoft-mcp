@@ -10,7 +10,7 @@ Forked from [elyxlz/microsoft-mcp](https://github.com/elyxlz/microsoft-mcp).
 
 ## Architecture
 
-- **Framework:** FastMCP 2.8.0
+- **Framework:** FastMCP (venv-pinned, currently 2.14.2 via uv.lock — verify with `.venv/bin/python -c "import fastmcp; print(fastmcp.__version__)"`)
 - **Auth:** MSAL device code flow, token cached at configurable path (default: `~/.microsoft_mcp_token_cache.json`)
 - **API:** Microsoft Graph API via httpx
 
@@ -20,7 +20,7 @@ Forked from [elyxlz/microsoft-mcp](https://github.com/elyxlz/microsoft-mcp).
 # Install dependencies
 uv sync --all-extras
 
-# Run tests (MUST use venv python to get pinned FastMCP 2.8.0)
+# Run tests (MUST use venv python to get the pinned FastMCP, currently 2.14.2)
 .venv/bin/python -m pytest tests/ -v
 
 # Linting
@@ -57,3 +57,4 @@ CI workflow is `.github/workflows/quality.yml`.
 - **`graph.request(json=...)` content-type selection must use `is not None`, not truthiness** (pa-69fc, 2026-05-18). A `json={}` body is falsy-truthy in Python — `if json:` treats it as absent, sets `Content-Type: application/octet-stream` while httpx still serializes the JSON body. Graph rejects the resulting mismatch as malformed. `delete_event(send_cancellation=true)` was the only caller passing `json={}` (to `POST /me/events/{id}/cancel`); the cancellation path silently failed for two days. Fix in `graph.py:33` is `is not None`. Regression test in `tests/test_graph_content_type.py` covers all three branches.
 - **`get_email` now defaults to plain-text body (`body_format="text"`)** (pa-l24r.2, 2026-06-23). Graph's `Prefer: outlook.body-content-type="text"` header is sent by default, so `body.contentType` in the response is `"text"` — markup-free, token-efficient. Pass `body_format="html"` to get the raw stored HTML (e.g. for formatting inspection). The `$search`/`$select` auto-triggers in `graph.request` are unchanged; `prefer_body_text=True` is a new explicit override added alongside them.
 - **Any `/me/mailFolders` or `/childFolders` listing must use `graph.request_paginated`, never `graph.request`** (mcp-fk1, 2026-07-01). The non-paginated call only returns Graph's first page (~10 folders); newly-created folders sort last in Graph's default order, so folder-name resolution silently missed them past page 1. `_resolve_folder_id` and `move_email` (now deduped to call it) both fixed. Regression tests in `tests/test_folder_pagination.py`.
+- **`attendanceReports` is delegated-reachable — NOT app-only** (mcp-b49, 2026-07-20). `GET /me/onlineMeetings/{id}/attendanceReports` works with the delegated device-flow token (`OnlineMeetingArtifact.Read.All`), unlike the app-only `getAllTranscripts` (mcp-s7p). Fetch per-participant records via the **paginated** `/attendanceReports/{id}/attendanceRecords` child collection, **never `$expand=attendanceRecords`** — a `$expand` of a collection is itself paged by Graph and silently truncates large meetings (mcp-fk1 class). Recurring meetings return one report **per occurrence**. Tools: `list_attendance_reports` / `get_attendance_report`; tests in `tests/test_attendance.py`.
