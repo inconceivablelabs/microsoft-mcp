@@ -14,7 +14,7 @@ from microsoft_mcp.tools import (
     _resolve_folder_id,
 )
 
-# FastMCP 2.8.0: @mcp.tool(name=...) wraps in FunctionTool; .fn is the raw callable
+# @mcp.tool(name=...) wraps the function in a FunctionTool; .fn is the raw callable
 list_emails = _list_emails_tool.fn
 
 

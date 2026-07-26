@@ -7,7 +7,7 @@ replaces source-level prefixes. Server tools use generic names
 
 from microsoft_mcp.tools import mcp
 
-# FastMCP 2.8.0: tools stored in _tool_manager._tools (dict keyed by name)
+# FastMCP stores registered tools in _tool_manager._tools (dict keyed by name)
 TOOL_REGISTRY = mcp._tool_manager._tools
 
 

@@ -1,9 +1,11 @@
 """Walker tests for replyTo classification + OBJECT-branch defense (mcp-9k2).
 
-Kept in a separate file so collection doesn't depend on `microsoft_mcp.tools`
-imports, which are currently broken at HEAD by a FastMCP API change
-unrelated to this fix (see report: tests/test_x500_resolution.py and 8 other
-test files fail collection on `_tool.fn` — separate cleanup work).
+Exercises the resolver directly through `microsoft_mcp.address_resolution`,
+so these stay independent of the tool layer in `microsoft_mcp.tools`.
+
+Originally split out because a FastMCP API change was thought to break
+collection on `_tool.fn`; that premise was retired under mcp-0sm — the
+idiom works on the pinned FastMCP, and the whole suite collects.
 """
 
 from unittest.mock import patch

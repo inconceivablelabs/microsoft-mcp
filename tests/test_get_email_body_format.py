@@ -8,7 +8,7 @@ Covers:
 from unittest.mock import patch
 from microsoft_mcp.tools import get_email as _get_email_tool, mcp
 
-# FastMCP 2.8.0: @mcp.tool wraps in FunctionTool; .fn is the raw callable
+# @mcp.tool wraps the function in a FunctionTool; .fn is the raw callable
 get_email = _get_email_tool.fn
 
 TOOL_REGISTRY = mcp._tool_manager._tools
