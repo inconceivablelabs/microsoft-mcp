@@ -43,6 +43,12 @@ pre-commit install
 
 CI workflow is `.github/workflows/quality.yml`.
 
+## Repo & Deploy Gotchas
+
+- **Merging to `main` publishes, but does NOT deploy — an explicit `docker pull` is required** (mcp-m4e, 2026-07-26). `docker-publish.yml` republishes `ghcr.io/inconceivablelabs/microsoft-mcp:latest` on push to `main`, and the gateway catalog pins `:latest` with per-call container spawn — but there is **no pull policy**, so the gateway keeps serving its locally cached image indefinitely. A merged security fix sat inert until `docker pull ghcr.io/inconceivablelabs/microsoft-mcp:latest` was run by hand. Verify the deployed digest (`docker images --digests`), not the merge. Because children are spawned per call, no gateway restart is needed and Janet is not interrupted. Rollback: the prior image survives locally — `docker tag <old-id> ghcr.io/inconceivablelabs/microsoft-mcp:latest`.
+- **`docker pull` from the devcontainer fails on the `credsStore` helper** — `error getting credentials - err: exit status 255`. Work around it with an isolated config (`DOCKER_CONFIG=<tmpdir>` containing `{}`); the GHCR package pulls anonymously. Same root cause as the compose-build entry in `bd memories`; do not edit the shared `~/.docker/config.json`.
+- **Always pass `-R inconceivablelabs/microsoft-mcp` to `gh`** (mcp-cgn, 2026-07-26). This repo is a fork of `elyxlz/microsoft-mcp`, and bare `gh pr list` / `gh repo view` resolve to the **parent** — silently reporting upstream's PRs and a `master` default branch. Our fork's default is `main`. An unscoped query produced a confidently wrong claim that Dependabot opened no PRs here.
+
 ## Graph API Lessons
 
 - **`/me/calendarView`** returns individual recurring event instances; **`/me/events`** only returns series masters. Use calendarView for listing events.
