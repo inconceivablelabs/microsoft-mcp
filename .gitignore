@@ -47,3 +47,6 @@ htmlcov/
 
 # Internal design/plan docs live in project-internals/microsoft-mcp/plans/ (mcp-te7)
 /docs/plans/
+
+# serena MCP local index/cache
+.serena/
