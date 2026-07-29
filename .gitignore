@@ -50,3 +50,6 @@ htmlcov/
 
 # serena MCP local index/cache
 .serena/
+
+# private-journal MCP local store — this repo is a PUBLIC fork; never commit it
+.private-journal/
