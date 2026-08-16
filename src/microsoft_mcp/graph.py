@@ -10,6 +10,47 @@ UPLOAD_CHUNK_SIZE = 15 * 320 * 1024
 _client = httpx.Client(timeout=30.0, follow_redirects=True)
 
 
+def _raise_with_graph_detail(response: httpx.Response) -> None:
+    """Raise HTTPStatusError carrying Graph's structured error detail, on 4xx only.
+
+    Graph returns the actionable part of an error in the response BODY, not the
+    status line. httpx's bare raise_for_status() discards it, which makes two
+    errors with different fixes look identical — notably the transcript 403s,
+    where error.code is "AccessDenied" for both and only innerError.code
+    distinguishes GraphAccessToTranscriptsDisabled (tenant Graph access off) from
+    SpeakerAttributionNotAllowed (attribution off; the same request succeeds
+    unattributed). Microsoft's reference directs callers to branch on
+    innerError.code because message text is subject to change:
+    https://learn.microsoft.com/en-us/graph/api/calltranscript-get?view=graph-rest-1.0
+
+    Returns silently when there is no detail to add (non-4xx, non-JSON body, or a
+    body with no error code) so the caller's own raise_for_status() still runs.
+    """
+    if not (400 <= response.status_code < 500):
+        return
+
+    try:
+        error_info = response.json().get("error", {})
+        code = error_info.get("code", "")
+        message = error_info.get("message", "")
+        inner_code = (error_info.get("innerError") or {}).get("code", "")
+    except Exception:
+        return
+
+    if not code:
+        return
+
+    detail = f" — {code}: {message}"
+    if inner_code:
+        detail += f" (innerError: {inner_code})"
+
+    raise httpx.HTTPStatusError(
+        f"{response.status_code}{detail}",
+        request=response.request,
+        response=response,
+    )
+
+
 def request(
     method: str,
     path: str,
@@ -69,23 +110,7 @@ def request(
                 retry_count += 1
                 continue
 
-            # Extract Graph API error detail from 4xx responses before raising
-            if response.status_code >= 400 and response.status_code < 500:
-                detail = ""
-                try:
-                    error_body = response.json()
-                    error_info = error_body.get("error", {})
-                    code = error_info.get("code", "")
-                    message = error_info.get("message", "")
-                    detail = f" — {code}: {message}" if code else ""
-                except Exception:
-                    pass
-                if detail:
-                    raise httpx.HTTPStatusError(
-                        f"{response.status_code}{detail}",
-                        request=response.request,
-                        response=response,
-                    )
+            _raise_with_graph_detail(response)
             response.raise_for_status()
 
             if response.content:
@@ -140,6 +165,7 @@ def request_text(
                 retry_count += 1
                 continue
 
+            _raise_with_graph_detail(response)
             response.raise_for_status()
 
             if not response.text:
@@ -211,6 +237,7 @@ def download_raw(
                 retry_count += 1
                 continue
 
+            _raise_with_graph_detail(response)
             response.raise_for_status()
             return response.content
 
