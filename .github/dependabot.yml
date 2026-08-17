@@ -1,0 +1,72 @@
+# Dependabot VERSION updates.
+#
+# Security updates are a repo-settings feature and already arrive without this
+# file; what was missing is routine, scheduled dependency freshness independent
+# of advisories (mcp-cgn).
+#
+# Shape: weekly, patch/minor grouped into one PR per ecosystem to keep volume
+# low on a repo nobody watches daily, majors deliberately left OUT of the groups
+# so each arrives as its own isolated, reviewable PR. That matters most for
+# fastmcp — pyproject caps it at <3 (mcp-t66.1) and the 2.x -> 3.x migration is
+# hand-driven, so the major PR should stand alone rather than ride along with a
+# batch of patches.
+#
+# Known upstream limitations (open dependabot-core issues, expected not broken):
+#   #12788 updates uv.lock but not pyproject.toml — so this will NOT lift the
+#          fastmcp floor on its own; that stays manual.
+#   #13426 security updates may run as `pip` regardless of this config.
+#   #13202 all deps treated as production, so the dev dependency-group here is
+#          not separable via `dependency-type` in groups.
+version: 2
+
+updates:
+  # Python runtime + dev dependencies (uv.lock + pyproject.toml).
+  # `uv`, not `pip`: version updates GA 2025-03-13, security updates GA
+  # 2025-12-16, and the existing alerts already report manifest_path=uv.lock.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      python-patch-minor:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
+
+  # Workflow actions in .github/workflows/{quality,semgrep,docker-publish}.yml.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      actions-patch-minor:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
+
+  # Base image in ./Dockerfile. Note `docker` supports version updates only —
+  # there are no Dependabot security updates for this ecosystem.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    groups:
+      docker-patch-minor:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+          - "minor"
