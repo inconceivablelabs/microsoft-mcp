@@ -10,7 +10,7 @@ Forked from [elyxlz/microsoft-mcp](https://github.com/elyxlz/microsoft-mcp).
 
 ## Architecture
 
-- **Framework:** FastMCP (venv-pinned, currently 2.14.2 via uv.lock — verify with `.venv/bin/python -c "import fastmcp; print(fastmcp.__version__)"`)
+- **Framework:** FastMCP (venv-pinned, currently 3.4.7 via uv.lock — verify with `.venv/bin/python -c "import fastmcp; print(fastmcp.__version__)"`)
 - **Auth:** MSAL device code flow, token cached at configurable path (default: `~/.microsoft_mcp_token_cache.json`)
 - **API:** Microsoft Graph API via httpx
 
@@ -20,7 +20,7 @@ Forked from [elyxlz/microsoft-mcp](https://github.com/elyxlz/microsoft-mcp).
 # Install dependencies
 uv sync --all-extras
 
-# Run tests (MUST use venv python to get the pinned FastMCP, currently 2.14.2)
+# Run tests (MUST use venv python to get the pinned FastMCP, currently 3.4.7)
 .venv/bin/python -m pytest tests/ -v
 
 # Linting
@@ -42,6 +42,15 @@ pre-commit install
 **Scope:** all three gates (`ruff check`, `ruff format --check`, `pyright`) run on `src/` AND `tests/` in both pre-commit and CI.
 
 CI workflow is `.github/workflows/quality.yml`.
+
+## FastMCP 3.x
+
+Migrated 2.14.2 → 3.4.7 on 2026-08-17 (mcp-m4e). `src/` needed zero changes; only the test suite touched moved internals.
+
+- **`@mcp.tool(name=...)` returns the PLAIN FUNCTION, not a `FunctionTool`.** The 2.x `_tool.fn` unwrap idiom is gone — `from microsoft_mcp.tools import list_emails` gives the callable directly. Don't reintroduce `.fn` on a decorated tool; it fails at import.
+- **`mcp._tool_manager` was removed.** The registry is reachable only via `await mcp.list_tools()` (returns `Sequence[FunctionTool]`) or `await mcp.get_tool(name)` — both **async**. Sync test modules bootstrap it once at import with `asyncio.run`; see `tests/test_tool_names.py`. `FunctionTool` itself survives and still carries `.fn` and `.parameters` unchanged — only how you *reach* a tool moved.
+- **Tool schemas gained fields.** Per-parameter `description` (harvested from docstring `Args:` blocks) and `additionalProperties: false`. Additive only — types, `required`, enums and defaults are unchanged.
+- **`tools/call` responses carry `_meta.fastmcp.wrap_result` and `structuredContent`.** Observed on the wire under 3.4.7; not compared against 2.14.2. Worth a live Janet call at the deploy gate.
 
 ## Repo & Deploy Gotchas
 
