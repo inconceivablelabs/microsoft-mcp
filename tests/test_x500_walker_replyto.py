@@ -5,7 +5,9 @@ so these stay independent of the tool layer in `microsoft_mcp.tools`.
 
 Originally split out because a FastMCP API change was thought to break
 collection on `_tool.fn`; that premise was retired under mcp-0sm — the
-idiom works on the pinned FastMCP, and the whole suite collects.
+idiom worked on FastMCP 2.x. Under 3.x (mcp-m4e) the decorator returns the
+plain function, so the unwrap idiom is gone from the suite entirely and
+these tests keep their tool-layer independence for free.
 """
 
 from unittest.mock import patch

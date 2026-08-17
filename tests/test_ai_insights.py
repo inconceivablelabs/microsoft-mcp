@@ -1,11 +1,8 @@
 """Tests for AI insight tools."""
 
 from unittest.mock import patch
-from microsoft_mcp.tools import list_ai_insights as _list_ai_insights_tool
-from microsoft_mcp.tools import get_ai_insight as _get_ai_insight_tool
-
-list_ai_insights = _list_ai_insights_tool.fn
-get_ai_insight = _get_ai_insight_tool.fn
+from microsoft_mcp.tools import list_ai_insights
+from microsoft_mcp.tools import get_ai_insight
 
 
 @patch("microsoft_mcp.tools.graph.request")

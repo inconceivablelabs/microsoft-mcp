@@ -6,9 +6,7 @@ don't have to branch on which endpoint produced the row.
 """
 
 from unittest.mock import patch
-from microsoft_mcp.tools import search_directory as _search_directory_tool
-
-search_directory = _search_directory_tool.fn
+from microsoft_mcp.tools import search_directory
 
 
 @patch("microsoft_mcp.tools.graph.request")

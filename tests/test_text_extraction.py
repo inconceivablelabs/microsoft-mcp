@@ -122,9 +122,7 @@ class TestGetAttachmentInlineContent:
 
     @patch("microsoft_mcp.tools.graph")
     def test_text_file_includes_content_key(self, mock_graph, tmp_path):
-        from microsoft_mcp.tools import get_attachment as get_attachment_tool
-
-        get_attachment = get_attachment_tool.fn
+        from microsoft_mcp.tools import get_attachment
 
         text = b"Meeting notes from Monday."
         mock_graph.request.return_value = self._mock_graph_response(
@@ -140,9 +138,7 @@ class TestGetAttachmentInlineContent:
 
     @patch("microsoft_mcp.tools.graph")
     def test_binary_file_omits_content_key(self, mock_graph, tmp_path):
-        from microsoft_mcp.tools import get_attachment as get_attachment_tool
-
-        get_attachment = get_attachment_tool.fn
+        from microsoft_mcp.tools import get_attachment
 
         binary = b"\x89PNG\r\n\x1a\n\x00\x00\x00"
         mock_graph.request.return_value = self._mock_graph_response(
@@ -157,9 +153,7 @@ class TestGetAttachmentInlineContent:
 
     @patch("microsoft_mcp.tools.graph")
     def test_truncates_large_text(self, mock_graph, tmp_path):
-        from microsoft_mcp.tools import get_attachment as get_attachment_tool
-
-        get_attachment = get_attachment_tool.fn
+        from microsoft_mcp.tools import get_attachment
 
         large_text = b"x" * 60_000
         mock_graph.request.return_value = self._mock_graph_response(
@@ -176,9 +170,7 @@ class TestGetAttachmentInlineContent:
 
     @patch("microsoft_mcp.tools.graph")
     def test_returns_base64_without_save_path(self, mock_graph):
-        from microsoft_mcp.tools import get_attachment as get_attachment_tool
-
-        get_attachment = get_attachment_tool.fn
+        from microsoft_mcp.tools import get_attachment
 
         binary = b"\x89PNG\r\n\x1a\n\x00\x00\x00PDF-bytes"
         mock_graph.request.return_value = self._mock_graph_response(
@@ -193,9 +185,7 @@ class TestGetAttachmentInlineContent:
 
     @patch("microsoft_mcp.tools.graph")
     def test_base64_returned_even_with_save_path(self, mock_graph, tmp_path):
-        from microsoft_mcp.tools import get_attachment as get_attachment_tool
-
-        get_attachment = get_attachment_tool.fn
+        from microsoft_mcp.tools import get_attachment
 
         binary = b"\x89PNG\r\n\x1a\n\x00\x00\x00"
         mock_graph.request.return_value = self._mock_graph_response(

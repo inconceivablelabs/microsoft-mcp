@@ -5,10 +5,14 @@ replaces source-level prefixes. Server tools use generic names
 (list_emails, list_events, etc.) and the gateway adds a prefix.
 """
 
+import asyncio
+
 from microsoft_mcp.tools import mcp
 
-# FastMCP stores registered tools in _tool_manager._tools (dict keyed by name)
-TOOL_REGISTRY = mcp._tool_manager._tools
+# FastMCP 3.x dropped mcp._tool_manager; the registry is now reachable only
+# through the async list_tools() API. Bootstrap it once at import so the tests
+# below stay synchronous.
+TOOL_REGISTRY = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
 
 
 def test_no_tools_have_ms365_prefix():

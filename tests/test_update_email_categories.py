@@ -1,10 +1,7 @@
 """Tests for categories support in update_email."""
 
 from unittest.mock import patch
-from microsoft_mcp.tools import update_email as _update_email_tool
-
-# @mcp.tool(name=...) wraps the function in a FunctionTool; .fn is the raw callable
-update_email = _update_email_tool.fn
+from microsoft_mcp.tools import update_email
 
 
 @patch("microsoft_mcp.tools.graph.request")

@@ -18,14 +18,10 @@ from microsoft_mcp.address_resolution import (
     resolve_x500_in_message,
 )
 from microsoft_mcp.tools import (
-    get_email as _get_email_tool,
-    list_emails as _list_emails_tool,
-    search_emails as _search_emails_tool,
+    get_email,
+    list_emails,
+    search_emails,
 )
-
-list_emails = _list_emails_tool.fn
-get_email = _get_email_tool.fn
-search_emails = _search_emails_tool.fn
 
 
 # --- Detector ---

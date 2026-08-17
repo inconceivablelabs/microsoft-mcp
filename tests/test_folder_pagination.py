@@ -12,10 +12,8 @@ from unittest.mock import patch
 
 from microsoft_mcp.tools import (
     _resolve_folder_id,
-    move_email as _move_email_tool,
+    move_email,
 )
-
-move_email = _move_email_tool.fn
 
 
 @patch("microsoft_mcp.graph.request")

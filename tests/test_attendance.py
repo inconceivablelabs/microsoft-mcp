@@ -13,11 +13,8 @@ from unittest.mock import patch
 
 import pytest
 
-from microsoft_mcp.tools import list_attendance_reports as _list_tool
-from microsoft_mcp.tools import get_attendance_report as _get_tool
-
-list_attendance_reports = _list_tool.fn
-get_attendance_report = _get_tool.fn
+from microsoft_mcp.tools import list_attendance_reports
+from microsoft_mcp.tools import get_attendance_report
 
 
 @patch("microsoft_mcp.graph.request")

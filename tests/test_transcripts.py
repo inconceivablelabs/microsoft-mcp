@@ -1,11 +1,8 @@
 """Tests for transcript tools."""
 
 from unittest.mock import patch
-from microsoft_mcp.tools import list_transcripts as _list_transcripts_tool
-from microsoft_mcp.tools import get_transcript_content as _get_transcript_content_tool
-
-list_transcripts = _list_transcripts_tool.fn
-get_transcript_content = _get_transcript_content_tool.fn
+from microsoft_mcp.tools import list_transcripts
+from microsoft_mcp.tools import get_transcript_content
 
 
 @patch("microsoft_mcp.tools.graph.request")

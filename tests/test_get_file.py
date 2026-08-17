@@ -13,10 +13,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from microsoft_mcp.tools import get_file as _get_file_tool
-
-# FastMCP wraps @mcp.tool in FunctionTool; .fn is the raw callable.
-get_file = _get_file_tool.fn
+from microsoft_mcp.tools import get_file
 
 
 def _metadata(

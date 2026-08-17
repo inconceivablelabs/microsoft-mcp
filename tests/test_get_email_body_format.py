@@ -5,13 +5,14 @@ Covers:
 - Task 3: body_format surfaces in the tool schema with text|html constraint + default
 """
 
+import asyncio
 from unittest.mock import patch
-from microsoft_mcp.tools import get_email as _get_email_tool, mcp
+from microsoft_mcp.tools import get_email, mcp
 
-# @mcp.tool wraps the function in a FunctionTool; .fn is the raw callable
-get_email = _get_email_tool.fn
-
-TOOL_REGISTRY = mcp._tool_manager._tools
+# FastMCP 3.x dropped mcp._tool_manager; the registry is now reachable only
+# through the async list_tools() API. Bootstrap it once at import so the tests
+# below stay synchronous.
+TOOL_REGISTRY = {tool.name: tool for tool in asyncio.run(mcp.list_tools())}
 
 FAKE_MESSAGE = {
     "id": "msg-001",

@@ -1,11 +1,8 @@
 """Tests for online meeting tools."""
 
 from unittest.mock import patch
-from microsoft_mcp.tools import list_online_meetings as _list_online_meetings_tool
-from microsoft_mcp.tools import get_online_meeting as _get_online_meeting_tool
-
-list_online_meetings = _list_online_meetings_tool.fn
-get_online_meeting = _get_online_meeting_tool.fn
+from microsoft_mcp.tools import list_online_meetings
+from microsoft_mcp.tools import get_online_meeting
 
 
 @patch("microsoft_mcp.tools.graph.request")

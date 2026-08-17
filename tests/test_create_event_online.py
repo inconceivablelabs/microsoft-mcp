@@ -1,9 +1,7 @@
 """Tests for create_event online meeting enhancement."""
 
 from unittest.mock import patch
-from microsoft_mcp.tools import create_event as _create_event_tool
-
-create_event = _create_event_tool.fn
+from microsoft_mcp.tools import create_event
 
 
 @patch("microsoft_mcp.tools.graph.request")

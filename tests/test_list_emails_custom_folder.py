@@ -10,12 +10,9 @@ folder IDs via the same pattern move_email uses.
 from unittest.mock import patch
 import pytest
 from microsoft_mcp.tools import (
-    list_emails as _list_emails_tool,
+    list_emails,
     _resolve_folder_id,
 )
-
-# @mcp.tool(name=...) wraps the function in a FunctionTool; .fn is the raw callable
-list_emails = _list_emails_tool.fn
 
 
 def _paginated_noop(*_args, **_kwargs):
