@@ -21,9 +21,13 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          # Sets UV_PYTHON. Pinned to match Dockerfile's python:3.12-slim so CI
+          # cannot silently test on a newer interpreter than we ship (mcp-t66.4).
+          python-version: "3.12"
 
       - name: Set up Python
-        run: uv python install 3.12
+        # No argument: installs the version pinned in .python-version.
+        run: uv python install
 
       - name: Install dependencies
         # --locked errors on a stale uv.lock instead of silently re-locking, so a

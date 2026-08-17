@@ -23,7 +23,8 @@ wheels/
 env/
 venv/
 ENV/
-.python-version
+# .python-version is TRACKED here on purpose: it pins the interpreter to match
+# the shipped image (Dockerfile FROM python:3.12-slim). See mcp-t66.4.
 .mypy_cache/
 .pytest_cache/
 .coverage
