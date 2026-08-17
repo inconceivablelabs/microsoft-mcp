@@ -676,7 +676,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastmcp", specifier = ">=2.8.0" },
+    { name = "fastmcp", specifier = ">=2.8.0,<3" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "msal", specifier = ">=1.32.3" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
