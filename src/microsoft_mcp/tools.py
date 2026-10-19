@@ -733,10 +733,14 @@ def list_events(
 
     if include_details:
         params["$select"] = (
-            "id,subject,start,end,location,body,attendees,organizer,isAllDay,recurrence,onlineMeeting,seriesMasterId"
+            "id,subject,start,end,location,body,attendees,organizer,isAllDay,recurrence,"
+            "onlineMeeting,seriesMasterId,categories,responseStatus"
         )
     else:
-        params["$select"] = "id,subject,start,end,location,organizer,seriesMasterId"
+        params["$select"] = (
+            "id,subject,start,end,location,organizer,seriesMasterId,"
+            "categories,responseStatus"
+        )
 
     # Use calendarView to get recurring event instances
     events = list(
