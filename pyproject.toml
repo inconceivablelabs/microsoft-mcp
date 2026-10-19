@@ -14,7 +14,8 @@ dependencies = [
     "fastmcp>=3.2.0,<4",
     "httpx>=0.28.1",
     "msal>=1.32.3",
-    "python-dotenv>=1.1.0",
+    # 1.2.2 is the floor for GHSA-mf9w-mj56-hr94 (mcp-93h).
+    "python-dotenv>=1.2.2",
 ]
 
 [project.scripts]
@@ -26,8 +27,9 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "mcp>=1.9.3",
-    "pytest>=8.4.0",
+    # Floors for GHSA-84m7-p3x7-pcfv (mcp) and GHSA-6w46-j5rx-g56g (pytest), mcp-93h.
+    "mcp>=1.30.0",
+    "pytest>=9.0.3",
     "pytest-asyncio>=1.0.0",
     "ruff>=0.15.5",
     "pyright>=1.1.408",
