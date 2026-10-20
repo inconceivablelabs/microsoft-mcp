@@ -738,7 +738,7 @@ def list_events(
         )
     else:
         params["$select"] = (
-            "id,subject,start,end,location,organizer,seriesMasterId,"
+            "id,subject,start,end,location,organizer,isAllDay,seriesMasterId,"
             "categories,responseStatus"
         )
 

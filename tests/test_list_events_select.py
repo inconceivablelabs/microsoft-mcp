@@ -71,3 +71,11 @@ def test_select_keeps_prior_fields(include_details):
     selected = _selected_fields(include_details)
     missing = PRIOR_FIELDS[include_details] - selected
     assert not missing, f"include_details={include_details} dropped {missing}"
+
+
+@pytest.mark.parametrize("include_details", [True, False])
+def test_select_includes_is_all_day(include_details):
+    # pa-rrue.11: the brief's include_details=False fetch reads isAllDay to
+    # render all-day events; without it every all-day event parses as timed.
+    selected = _selected_fields(include_details)
+    assert "isAllDay" in selected, f"include_details={include_details} missing isAllDay"
