@@ -202,7 +202,10 @@ def list_emails(
     if include_body:
         select_fields = "id,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,body,conversationId,isRead"
     else:
-        select_fields = "id,subject,from,toRecipients,receivedDateTime,hasAttachments,conversationId,isRead"
+        # bodyPreview: first 255 chars of the body, text format. Graph message resource:
+        # https://learn.microsoft.com/en-us/graph/api/resources/message?view=graph-rest-1.0
+        # ccRecipients and bodyPreview feed the morning brief's Sent Items read (pa-rrue.14).
+        select_fields = "id,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,conversationId,isRead,bodyPreview"
 
     params = {
         "$top": min(limit, 100),
